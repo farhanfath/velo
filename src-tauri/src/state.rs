@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VaultSnapshotResponse {
@@ -95,7 +95,9 @@ impl AppState {
 
     pub fn lock(&self) {
         let mut guard = self.session.lock().expect("lock session");
-        guard.data = None;
+        if let Some(mut data) = guard.data.take() {
+            data.zeroize();
+        }
         guard.master_password = None;
     }
 
@@ -111,7 +113,9 @@ impl AppState {
         }
         let timeout = Duration::from_secs(u64::from(guard.auto_lock_minutes) * 60);
         if guard.last_active.elapsed() >= timeout {
-            guard.data = None;
+            if let Some(mut data) = guard.data.take() {
+                data.zeroize();
+            }
             guard.master_password = None;
             return true;
         }

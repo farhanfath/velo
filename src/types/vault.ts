@@ -40,3 +40,10 @@ export interface VaultStatus {
   vault_path: string;
   auto_lock_minutes: number;
 }
+
+export interface VaultSnapshotResponse {
+  entries: VaultEntry[];
+  email_relations: EmailRelationSummary[];
+  tags: string[];
+  status: VaultStatus;
+}
