@@ -1,6 +1,7 @@
 pub mod crypto;
 pub mod models;
 pub mod parser;
+pub mod search;
 pub mod storage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
