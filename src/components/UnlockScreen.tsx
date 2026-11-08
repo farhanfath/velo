@@ -5,7 +5,6 @@ import {
   EyeSlash,
   FolderOpen,
   Key,
-  LockKey,
   ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
@@ -91,12 +90,14 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
       <div className="w-full max-w-[1120px] mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <section className="lg:col-span-7 bg-[#121215] border border-white/[0.07] rounded-xl p-6 sm:p-8">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#10B981]">
-              <LockKey size={22} weight="duotone" />
-            </div>
+            <img
+              src="/velo-logo.png"
+              alt="Velo Logo"
+              className="w-11 h-11 rounded-lg border border-emerald-500/30 object-cover shrink-0"
+            />
             <div>
               <h1 className="text-xl font-semibold text-[#F4F4F5] tracking-tight">
-                Storage Local
+                Velo
               </h1>
               <p className="text-sm text-[#A1A1AA]">
                 {status.exists

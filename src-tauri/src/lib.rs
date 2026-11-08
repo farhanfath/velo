@@ -70,7 +70,7 @@ pub fn run() {
             let tray_menu = Menu::with_items(app, &[&show_hide_item, &lock_now_item, &quit_item])?;
 
             let mut tray_builder = TrayIconBuilder::new()
-                .tooltip("Storage Local — Personal Credential Vault")
+                .tooltip("Velo — Personal Credential Vault")
                 .menu(&tray_menu)
                 .on_menu_event(|app_handle, event| match event.id.as_ref() {
                     "show_hide" => {

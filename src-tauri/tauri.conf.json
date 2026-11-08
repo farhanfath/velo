@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Storage Local",
+  "productName": "Velo",
   "version": "0.1.0",
-  "identifier": "com.storagelocal.vault",
+  "identifier": "com.velo.vault",
   "build": {
     "beforeDevCommand": "npm.cmd run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Storage Local — Personal Credential Vault",
+        "title": "Velo — Personal Credential Vault",
         "width": 1160,
         "height": 760,
         "minWidth": 880,

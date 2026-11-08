@@ -5,7 +5,6 @@ import {
   LockSimple,
   MagnifyingGlass,
   Plus,
-  ShieldCheck,
   X,
 } from "@phosphor-icons/react";
 
@@ -38,12 +37,14 @@ export const TopCommandBar: React.FC<TopCommandBarProps> = ({
       <div className="max-w-[1440px] mx-auto flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 max-w-2xl">
           <div className="flex items-center gap-2.5 shrink-0 self-center">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#10B981]">
-              <ShieldCheck size={18} weight="duotone" />
-            </div>
+            <img
+              src="/velo-logo.png"
+              alt="Velo Logo"
+              className="w-9 h-9 rounded-lg border border-emerald-500/30 object-cover shrink-0"
+            />
             <div>
               <div className="text-sm font-semibold text-[#F4F4F5] leading-tight">
-                Storage Local
+                Velo
               </div>
               <div className="flex items-center gap-1.5 text-xs text-[#10B981] font-mono tabular-nums">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
