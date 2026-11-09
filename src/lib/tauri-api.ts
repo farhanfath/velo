@@ -289,6 +289,8 @@ interface MockVaultStore {
   unlocked: boolean;
   vaultPath: string;
   autoLockMinutes: number;
+  windowsHelloAvailable: boolean;
+  windowsHelloEnabled: boolean;
   masterPassword: string | null;
   entries: VaultEntry[];
   backupEntries: VaultEntry[];
@@ -308,6 +310,8 @@ let mockStore: MockVaultStore = {
   unlocked: false,
   vaultPath: DEFAULT_VAULT_PATH,
   autoLockMinutes: 5,
+  windowsHelloAvailable: true,
+  windowsHelloEnabled: false,
   masterPassword: null,
   entries: [],
   backupEntries: [],
@@ -322,6 +326,8 @@ export function resetMockVaultForTests(): void {
     unlocked: false,
     vaultPath: DEFAULT_VAULT_PATH,
     autoLockMinutes: 5,
+    windowsHelloAvailable: true,
+    windowsHelloEnabled: false,
     masterPassword: null,
     entries: [],
     backupEntries: [],
@@ -337,6 +343,8 @@ function getMockStatus(): VaultStatus {
     unlocked: mockStore.unlocked,
     vault_path: mockStore.vaultPath,
     auto_lock_minutes: mockStore.autoLockMinutes,
+    windows_hello_available: mockStore.windowsHelloAvailable,
+    windows_hello_enabled: mockStore.windowsHelloEnabled,
   };
 }
 
@@ -409,6 +417,65 @@ export async function lockVault(): Promise<VaultStatus> {
   }
   mockStore.unlocked = false;
   return getMockStatus();
+}
+
+export async function enableWindowsHello(
+  masterPassword?: string | null
+): Promise<VaultStatus> {
+  if (isTauriRuntime()) {
+    return invoke<VaultStatus>("enable_windows_hello", {
+      masterPassword: masterPassword ?? null,
+    });
+  }
+
+  if (!mockStore.windowsHelloAvailable) {
+    throw new Error(
+      "Windows Hello tidak tersedia atau belum dikonfigurasi di perangkat Windows ini."
+    );
+  }
+
+  const trimmed = masterPassword?.trim();
+  if (trimmed) {
+    if (mockStore.exists && mockStore.masterPassword !== trimmed) {
+      throw new Error("Master Password salah atau file vault tidak valid");
+    }
+  } else if (!mockStore.unlocked || !mockStore.masterPassword) {
+    throw new Error(
+      "Buka vault terlebih dahulu atau masukkan Master Password untuk mengaktifkan Windows Hello."
+    );
+  }
+
+  mockStore.windowsHelloEnabled = true;
+  return getMockStatus();
+}
+
+export async function disableWindowsHello(): Promise<VaultStatus> {
+  if (isTauriRuntime()) {
+    return invoke<VaultStatus>("disable_windows_hello");
+  }
+  mockStore.windowsHelloEnabled = false;
+  return getMockStatus();
+}
+
+export async function unlockWithWindowsHello(
+  customPath?: string | null
+): Promise<VaultSnapshotResponse> {
+  if (isTauriRuntime()) {
+    return invoke<VaultSnapshotResponse>("unlock_with_windows_hello", {
+      customPath: customPath ?? null,
+    });
+  }
+
+  if (customPath && customPath.trim().length > 0) {
+    mockStore.vaultPath = customPath.trim();
+  }
+
+  if (!mockStore.exists || !mockStore.windowsHelloEnabled) {
+    throw new Error("Windows Hello belum diaktifkan untuk vault ini.");
+  }
+
+  mockStore.unlocked = true;
+  return getMockSnapshot();
 }
 
 export async function parsePreview(

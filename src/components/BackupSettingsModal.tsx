@@ -4,6 +4,7 @@ import {
   Clock,
   ClockCounterClockwise,
   DownloadSimple,
+  Fingerprint,
   GearSix,
   Keyboard,
   UploadSimple,
@@ -17,6 +18,8 @@ interface BackupSettingsModalProps {
   status: VaultStatus;
   onClose: () => void;
   onUpdateAutoLock: (minutes: number) => Promise<void>;
+  onEnableWindowsHello: () => Promise<void>;
+  onDisableWindowsHello: () => Promise<void>;
   onExportBackup: (destinationPath: string) => Promise<void>;
   onRestoreBackup: (sourcePath: string, masterPassword: string) => Promise<void>;
   onRecoverFromBak: (masterPassword: string) => Promise<void>;
@@ -35,6 +38,8 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
   status,
   onClose,
   onUpdateAutoLock,
+  onEnableWindowsHello,
+  onDisableWindowsHello,
   onExportBackup,
   onRestoreBackup,
   onRecoverFromBak,
@@ -69,6 +74,34 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : "Gagal memperbarui Auto-Lock"
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleToggleWindowsHello = async () => {
+    clearFeedback();
+    setIsBusy(true);
+    try {
+      if (status.windows_hello_enabled) {
+        await onDisableWindowsHello();
+        setSuccessMessage(
+          "Windows Hello Quick-Unlock telah dinonaktifkan untuk perangkat ini."
+        );
+      } else {
+        await onEnableWindowsHello();
+        setSuccessMessage(
+          "Windows Hello Quick-Unlock berhasil diaktifkan untuk perangkat ini."
+        );
+      }
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Gagal memperbarui status Windows Hello"
       );
     } finally {
       setIsBusy(false);
@@ -242,6 +275,50 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
                 );
               })}
             </div>
+          </section>
+
+          <section className="pt-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Fingerprint size={18} weight="duotone" className="text-[#10B981]" />
+                <h3 className="text-sm font-semibold text-[#F4F4F5]">
+                  Windows Hello Quick-Unlock (DPAPI)
+                </h3>
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums border ${
+                    status.windows_hello_enabled
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-[#10B981]"
+                      : "bg-[#09090B] border-white/[0.07] text-[#A1A1AA]"
+                  }`}
+                >
+                  {status.windows_hello_enabled
+                    ? "Aktif"
+                    : status.windows_hello_available
+                      ? "Belum Aktif"
+                      : "Tidak Tersedia di Perangkat Ini"}
+                </span>
+              </div>
+
+              {status.windows_hello_available && (
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={handleToggleWindowsHello}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border active:scale-[0.98] transition-all duration-150 disabled:opacity-50 ${
+                    status.windows_hello_enabled
+                      ? "bg-[#09090B] hover:bg-[#18181C] text-[#F43F5E] border-[#F43F5E]/30"
+                      : "bg-[#10B981] hover:bg-emerald-400 text-[#09090B] border-[#10B981]"
+                  }`}
+                >
+                  {status.windows_hello_enabled
+                    ? "Nonaktifkan Windows Hello"
+                    : "Aktifkan Windows Hello"}
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-[#A1A1AA]">
+              Simpan kunci pembuka terenkripsi Windows DPAPI lokal yang terikat ke akun Windows ini, sehingga Anda dapat membuka vault dengan PIN Windows, Sidik Jari, atau Wajah tanpa mengetik ulang Master Password.
+            </p>
           </section>
 
           <form onSubmit={handleExport} noValidate className="pt-6 space-y-3">

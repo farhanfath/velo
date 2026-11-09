@@ -193,4 +193,63 @@ describe("Storage Local — Dark Obsidian UI & End-to-End Vault Workflow", () =>
     expect(screen.queryByText("amazon video")).not.toBeInTheDocument();
     expect(screen.queryByText("netflix")).not.toBeInTheDocument();
   });
+
+  it("enables Windows Hello Quick-Unlock, locks vault, unlocks in 1 click without typing password, and toggles in Settings", async () => {
+    render(<App />);
+
+    const passwordInput = await screen.findByLabelText(/Master Password \/ PIN/i);
+    fireEvent.change(passwordInput, { target: { value: "winhello-pin-777" } });
+
+    const winHelloCheckbox = await screen.findByLabelText(
+      /Aktifkan Windows Hello di perangkat ini setelah buka vault/i
+    );
+    fireEvent.click(winHelloCheckbox);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Buat Vault Baru|Buka Vault/i })
+    );
+
+    // Add a credential
+    fireEvent.click(
+      await screen.findByRole("button", { name: /\+ Catatan Baru/i })
+    );
+    fireEvent.change(screen.getByLabelText(/Format Chat/i), {
+      target: {
+        value: "github #dev\nemail: dev@velo.local\npass: gh-token-999",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Simpan Catatan/i }));
+    await waitFor(() => {
+      expect(screen.getByText("github")).toBeInTheDocument();
+    });
+
+    // Lock vault
+    fireEvent.click(screen.getByRole("button", { name: /Lock Vault/i }));
+
+    // Verify "Buka dengan Windows Hello" button appears on UnlockScreen
+    const winHelloUnlockBtn = await screen.findByRole("button", {
+      name: /Buka dengan Windows Hello/i,
+    });
+    expect(winHelloUnlockBtn).toBeInTheDocument();
+
+    // Unlock in 1 click WITHOUT typing Master Password
+    fireEvent.click(winHelloUnlockBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("github")).toBeInTheDocument();
+    });
+
+    // Open Backup & Settings modal and disable Windows Hello
+    fireEvent.click(
+      screen.getByRole("button", { name: /Backup & Settings/i })
+    );
+    const disableBtn = await screen.findByRole("button", {
+      name: /Nonaktifkan Windows Hello/i,
+    });
+    fireEvent.click(disableBtn);
+
+    expect(
+      await screen.findByText(/Windows Hello Quick-Unlock telah dinonaktifkan/i)
+    ).toBeInTheDocument();
+  });
 });

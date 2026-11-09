@@ -29,6 +29,27 @@ pub fn lock_vault(state: tauri::State<'_, AppState>) -> Result<VaultStatus, Stri
 }
 
 #[tauri::command]
+pub fn enable_windows_hello(
+    state: tauri::State<'_, AppState>,
+    master_password: Option<String>,
+) -> Result<VaultStatus, String> {
+    state.enable_windows_hello(master_password.as_deref())
+}
+
+#[tauri::command]
+pub fn disable_windows_hello(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
+    state.disable_windows_hello()
+}
+
+#[tauri::command]
+pub fn unlock_with_windows_hello(
+    state: tauri::State<'_, AppState>,
+    custom_path: Option<String>,
+) -> Result<VaultSnapshotResponse, String> {
+    state.unlock_with_windows_hello(custom_path.as_deref())
+}
+
+#[tauri::command]
 pub fn parse_preview(raw_text: String) -> Result<Option<ParsedEntryDraft>, String> {
     Ok(parse_entry_text(&raw_text))
 }

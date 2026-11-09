@@ -39,6 +39,8 @@ export interface VaultStatus {
   unlocked: boolean;
   vault_path: string;
   auto_lock_minutes: number;
+  windows_hello_available: boolean;
+  windows_hello_enabled: boolean;
 }
 
 export interface VaultSnapshotResponse {

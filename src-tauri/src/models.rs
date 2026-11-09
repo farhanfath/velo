@@ -72,6 +72,8 @@ pub struct VaultStatus {
     pub unlocked: bool,
     pub vault_path: String,
     pub auto_lock_minutes: u32,
+    pub windows_hello_available: bool,
+    pub windows_hello_enabled: bool,
 }
 
 #[cfg(test)]

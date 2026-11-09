@@ -19,6 +19,8 @@ import { UnlockScreen } from "./components/UnlockScreen";
 import {
   bulkImportFromRaw,
   deleteEntry,
+  disableWindowsHello,
+  enableWindowsHello,
   exportVaultBackup,
   filterEntries,
   getVaultStatus,
@@ -29,6 +31,7 @@ import {
   restoreVaultBackup,
   subscribeVaultLocked,
   toggleFavorite,
+  unlockWithWindowsHello,
   updateAutoLockMinutes,
   upsertEntryFromRaw,
 } from "./lib/tauri-api";
@@ -45,6 +48,8 @@ const INITIAL_STATUS: VaultStatus = {
   unlocked: false,
   vault_path: "storage-local.vault",
   auto_lock_minutes: 5,
+  windows_hello_available: false,
+  windows_hello_enabled: false,
 };
 
 export const App: React.FC = () => {
@@ -169,10 +174,34 @@ export const App: React.FC = () => {
 
   const handleUnlock = async (
     masterPassword: string,
-    customPath?: string | null
+    customPath?: string | null,
+    enableWindowsHelloAfterUnlock?: boolean
   ) => {
     const snap = await initOrUnlockVault(masterPassword, customPath);
     applySnapshot(snap);
+    if (enableWindowsHelloAfterUnlock && snap.status.windows_hello_available) {
+      try {
+        const nextStatus = await enableWindowsHello(masterPassword);
+        setStatus(nextStatus);
+      } catch {
+        // Vault remains unlocked even if Windows Hello enrollment was canceled
+      }
+    }
+  };
+
+  const handleUnlockWithWindowsHello = async (customPath?: string | null) => {
+    const snap = await unlockWithWindowsHello(customPath);
+    applySnapshot(snap);
+  };
+
+  const handleEnableWindowsHello = async () => {
+    const nextStatus = await enableWindowsHello();
+    setStatus(nextStatus);
+  };
+
+  const handleDisableWindowsHello = async () => {
+    const nextStatus = await disableWindowsHello();
+    setStatus(nextStatus);
   };
 
   const handleRecoverBak = async (masterPassword: string) => {
@@ -237,6 +266,7 @@ export const App: React.FC = () => {
       <UnlockScreen
         status={status}
         onUnlock={handleUnlock}
+        onUnlockWithWindowsHello={handleUnlockWithWindowsHello}
         onRecoverFromBak={handleRecoverBak}
       />
     );
@@ -455,6 +485,8 @@ export const App: React.FC = () => {
         status={status}
         onClose={() => setIsSettingsModalOpen(false)}
         onUpdateAutoLock={handleUpdateAutoLock}
+        onEnableWindowsHello={handleEnableWindowsHello}
+        onDisableWindowsHello={handleDisableWindowsHello}
         onExportBackup={handleExportBackup}
         onRestoreBackup={handleRestoreBackup}
         onRecoverFromBak={handleRecoverBak}

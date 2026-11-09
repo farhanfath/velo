@@ -5,6 +5,7 @@ pub mod parser;
 pub mod search;
 pub mod state;
 pub mod storage;
+pub mod winhello;
 
 use crate::state::AppState;
 use std::path::PathBuf;
@@ -130,6 +131,9 @@ pub fn run() {
             commands::get_vault_status,
             commands::init_or_unlock_vault,
             commands::lock_vault,
+            commands::enable_windows_hello,
+            commands::disable_windows_hello,
+            commands::unlock_with_windows_hello,
             commands::parse_preview,
             commands::parse_bulk_preview,
             commands::upsert_entry_from_raw,

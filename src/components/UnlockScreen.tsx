@@ -3,6 +3,7 @@ import {
   ClockCounterClockwise,
   Eye,
   EyeSlash,
+  Fingerprint,
   FolderOpen,
   Key,
   ShieldCheck,
@@ -12,19 +13,26 @@ import type { VaultStatus } from "../types/vault";
 
 interface UnlockScreenProps {
   status: VaultStatus;
-  onUnlock: (masterPassword: string, customPath?: string | null) => Promise<void>;
+  onUnlock: (
+    masterPassword: string,
+    customPath?: string | null,
+    enableWindowsHelloAfterUnlock?: boolean
+  ) => Promise<void>;
+  onUnlockWithWindowsHello: (customPath?: string | null) => Promise<void>;
   onRecoverFromBak: (masterPassword: string) => Promise<void>;
 }
 
 export const UnlockScreen: React.FC<UnlockScreenProps> = ({
   status,
   onUnlock,
+  onUnlockWithWindowsHello,
   onRecoverFromBak,
 }) => {
   const [masterPassword, setMasterPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showCustomPath, setShowCustomPath] = useState(false);
   const [customPath, setCustomPath] = useState("");
+  const [enableWinHelloOnUnlock, setEnableWinHelloOnUnlock] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +51,8 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
     try {
       await onUnlock(
         masterPassword,
-        showCustomPath && customPath.trim() ? customPath.trim() : null
+        showCustomPath && customPath.trim() ? customPath.trim() : null,
+        enableWinHelloOnUnlock
       );
       setMasterPassword("");
     } catch (err) {
@@ -53,6 +62,27 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
           : typeof err === "string"
             ? err
             : "Master Password salah atau file vault tidak valid";
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWindowsHelloUnlock = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      await onUnlockWithWindowsHello(
+        showCustomPath && customPath.trim() ? customPath.trim() : null
+      );
+      setMasterPassword("");
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Gagal membuka vault dengan Windows Hello";
       setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
@@ -117,6 +147,34 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
             </span>
           </div>
 
+          {status.exists && status.windows_hello_enabled && (
+            <div className="mb-6 p-4 rounded-xl bg-[#09090B] border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-[#10B981] shrink-0 mt-0.5">
+                  <Fingerprint size={20} weight="duotone" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-[#F4F4F5]">
+                    Windows Hello Quick-Unlock Aktif
+                  </div>
+                  <p className="text-xs text-[#A1A1AA]">
+                    Buka brankas secara instan dengan PIN Windows, Sidik Jari, atau Wajah tanpa mengetik ulang sandi.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleWindowsHelloUnlock}
+                disabled={isSubmitting}
+                className="px-4 py-2.5 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/40 text-[#10B981] text-xs font-semibold flex items-center justify-center gap-2 shrink-0 active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
+              >
+                <Fingerprint size={17} weight="bold" />
+                <span>Buka dengan Windows Hello</span>
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <div className="flex flex-col gap-2">
               <label
@@ -162,6 +220,29 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
                 Kunci diturunkan secara lokal dengan Argon2id dan dienkripsi menggunakan XChaCha20-Poly1305.
               </p>
             </div>
+
+            {status.windows_hello_available && !status.windows_hello_enabled && (
+              <label
+                htmlFor="enable-winhello-on-unlock"
+                className="flex items-center gap-2.5 py-2 px-3 rounded-lg bg-[#09090B] border border-white/[0.07] cursor-pointer select-none"
+              >
+                <input
+                  id="enable-winhello-on-unlock"
+                  type="checkbox"
+                  checked={enableWinHelloOnUnlock}
+                  onChange={(e) => setEnableWinHelloOnUnlock(e.target.checked)}
+                  className="rounded border-white/20 bg-[#121215] text-[#10B981] focus:ring-[#10B981]"
+                />
+                <Fingerprint
+                  size={16}
+                  weight="duotone"
+                  className="text-[#10B981] shrink-0"
+                />
+                <span className="text-xs text-[#F4F4F5]">
+                  Aktifkan Windows Hello di perangkat ini setelah buka vault
+                </span>
+              </label>
+            )}
 
             {showCustomPath && (
               <div className="flex flex-col gap-2 pt-1">

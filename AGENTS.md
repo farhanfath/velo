@@ -32,6 +32,6 @@ Code lives in this repo (`D:\My Data\FATHUR PROGRAM\ai-project-all\storage-local
 ## Project Summary
 
 **Velo** (`storage-local`) is a 100% local-first, zero-server desktop credential & secret centralizer built with **Tauri v2 (Rust Core Engine + React 19/TypeScript + Tailwind CSS v4)**.
-- **Crypto & Storage**: Pure Rust `argon2` (`Argon2id`) + `chacha20poly1305` (`XChaCha20-Poly1305`) + `zeroize` with atomic single-file `.vault` persistence and automatic `.vault.bak` backup.
+- **Crypto & Storage**: Pure Rust `argon2` (`Argon2id`) + `chacha20poly1305` (`XChaCha20-Poly1305`) + `zeroize` with atomic single-file `.vault` persistence and automatic `.vault.bak` backup, plus optional **Persistent Windows Hello Quick-Unlock** (`src-tauri/src/winhello.rs` using Win32 DPAPI `CryptProtectData` + WinRT `UserConsentVerifier`).
 - **Core Workflow**: Smart Chat-Style Parser (`Title` + `key: value` lines + `#tags`), Bulk Paste Migrator (from WhatsApp/Telegram/Notepad), Instant Search & Reverse Email Relation Lookup, 30s Clipboard Auto-Clear, System Tray & Global Hotkey (`Ctrl+Shift+Space`), and Idle Auto-Lock.
 - **Standalone Release Binary**: `src-tauri\target\release\Velo.exe` (built via `npm.cmd run tauri build -- --no-bundle`).

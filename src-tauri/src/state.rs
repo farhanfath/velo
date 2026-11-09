@@ -2,9 +2,13 @@ use crate::models::{EmailRelationSummary, VaultData, VaultEntry, VaultStatus};
 use crate::parser::{parse_bulk_text, parse_entry_text};
 use crate::search::{build_email_relations, filter_entries};
 use crate::storage::{backup_path_for, export_vault_copy, load_vault, save_vault_atomic};
+use crate::winhello::{
+    has_winhello_blob, load_winhello_secret, remove_winhello_secret, save_winhello_secret,
+    ConsentVerifier, SystemConsentVerifier,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
@@ -27,10 +31,18 @@ pub struct InnerSession {
 
 pub struct AppState {
     pub session: Mutex<InnerSession>,
+    pub verifier: Arc<dyn ConsentVerifier>,
 }
 
 impl AppState {
     pub fn new(default_vault_path: PathBuf) -> Self {
+        Self::new_with_verifier(default_vault_path, Arc::new(SystemConsentVerifier::new()))
+    }
+
+    pub fn new_with_verifier(
+        default_vault_path: PathBuf,
+        verifier: Arc<dyn ConsentVerifier>,
+    ) -> Self {
         Self {
             session: Mutex::new(InnerSession {
                 vault_path: default_vault_path,
@@ -39,10 +51,11 @@ impl AppState {
                 last_active: Instant::now(),
                 auto_lock_minutes: 5,
             }),
+            verifier,
         }
     }
 
-    fn status_from_guard(guard: &InnerSession) -> VaultStatus {
+    fn status_from_guard(&self, guard: &InnerSession) -> VaultStatus {
         let bak = backup_path_for(&guard.vault_path);
         VaultStatus {
             exists: guard.vault_path.exists(),
@@ -50,6 +63,8 @@ impl AppState {
             unlocked: guard.data.is_some(),
             vault_path: guard.vault_path.display().to_string(),
             auto_lock_minutes: guard.auto_lock_minutes,
+            windows_hello_available: self.verifier.is_available(),
+            windows_hello_enabled: has_winhello_blob(&guard.vault_path),
         }
     }
 
@@ -68,6 +83,7 @@ impl AppState {
     }
 
     fn snapshot_from_guard(
+        &self,
         guard: &InnerSession,
         override_entries: Option<Vec<VaultEntry>>,
     ) -> Result<VaultSnapshotResponse, String> {
@@ -78,7 +94,7 @@ impl AppState {
         let email_relations = build_email_relations(&data.entries);
         let tags = Self::collect_unique_tags(&data.entries);
         let entries = override_entries.unwrap_or_else(|| data.entries.clone());
-        let status = Self::status_from_guard(guard);
+        let status = self.status_from_guard(guard);
 
         Ok(VaultSnapshotResponse {
             entries,
@@ -90,7 +106,7 @@ impl AppState {
 
     pub fn status(&self) -> VaultStatus {
         let guard = self.session.lock().expect("lock session");
-        Self::status_from_guard(&guard)
+        self.status_from_guard(&guard)
     }
 
     pub fn lock(&self) {
@@ -154,7 +170,106 @@ impl AppState {
         guard.master_password = Some(Zeroizing::new(master_password.to_string()));
         guard.last_active = Instant::now();
 
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
+    }
+
+    pub fn enable_windows_hello(
+        &self,
+        master_password_override: Option<&str>,
+    ) -> Result<VaultStatus, String> {
+        if !self.verifier.is_available() {
+            return Err(
+                "Windows Hello tidak tersedia atau belum dikonfigurasi di perangkat Windows ini."
+                    .to_string(),
+            );
+        }
+
+        let (vault_path, resolved_password) = {
+            let guard = self.session.lock().expect("lock session");
+            let path = guard.vault_path.clone();
+            let pwd = if let Some(override_pwd) = master_password_override
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                if path.exists() {
+                    let _ = load_vault(&path, override_pwd).map_err(|e| e.to_string())?;
+                }
+                Zeroizing::new(override_pwd.to_string())
+            } else if let Some(ref session_pwd) = guard.master_password {
+                session_pwd.clone()
+            } else {
+                return Err(
+                    "Buka vault terlebih dahulu atau masukkan Master Password untuk mengaktifkan Windows Hello."
+                        .to_string(),
+                );
+            };
+            (path, pwd)
+        };
+
+        self.verifier
+            .verify("Velo — Konfirmasi Windows Hello untuk mengaktifkan Quick-Unlock")?;
+
+        save_winhello_secret(&vault_path, &resolved_password)?;
+
+        let mut guard = self.session.lock().expect("lock session");
+        guard.last_active = Instant::now();
+        Ok(self.status_from_guard(&guard))
+    }
+
+    pub fn disable_windows_hello(&self) -> Result<VaultStatus, String> {
+        let mut guard = self.session.lock().expect("lock session");
+        remove_winhello_secret(&guard.vault_path)?;
+        guard.last_active = Instant::now();
+        Ok(self.status_from_guard(&guard))
+    }
+
+    pub fn unlock_with_windows_hello(
+        &self,
+        custom_path: Option<&str>,
+    ) -> Result<VaultSnapshotResponse, String> {
+        let path = {
+            let mut guard = self.session.lock().expect("lock session");
+            if let Some(cp) = custom_path {
+                let trimmed = cp.trim();
+                if !trimmed.is_empty() {
+                    guard.vault_path = PathBuf::from(trimmed);
+                }
+            }
+            guard.vault_path.clone()
+        };
+
+        if !has_winhello_blob(&path) {
+            return Err("Windows Hello belum diaktifkan untuk vault ini.".to_string());
+        }
+        if !self.verifier.is_available() {
+            return Err(
+                "Windows Hello tidak tersedia atau belum dikonfigurasi di perangkat Windows ini."
+                    .to_string(),
+            );
+        }
+
+        self.verifier
+            .verify("Velo — Verifikasi identitas Anda untuk membuka brankas lokal")?;
+
+        let master_password = load_winhello_secret(&path)?;
+        let data = match load_vault(&path, &master_password) {
+            Ok(d) => d,
+            Err(_) => {
+                let _ = remove_winhello_secret(&path);
+                return Err(
+                    "Kredensial Windows Hello sudah tidak cocok dengan Master Password vault. Silakan masuk dengan Master Password."
+                        .to_string(),
+                );
+            }
+        };
+
+        let mut guard = self.session.lock().expect("lock session");
+        guard.auto_lock_minutes = data.auto_lock_minutes;
+        guard.data = Some(data);
+        guard.master_password = Some(master_password);
+        guard.last_active = Instant::now();
+
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn upsert_raw(
@@ -235,7 +350,7 @@ impl AppState {
         save_vault_atomic(&path, data_ref, pwd).map_err(|e| e.to_string())?;
 
         guard.last_active = Instant::now();
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn bulk_import_raw(&self, raw_bulk: &str) -> Result<VaultSnapshotResponse, String> {
@@ -284,7 +399,7 @@ impl AppState {
         save_vault_atomic(&path, data_ref, pwd).map_err(|e| e.to_string())?;
 
         guard.last_active = Instant::now();
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn delete_entry_by_id(&self, id: &str) -> Result<VaultSnapshotResponse, String> {
@@ -316,7 +431,7 @@ impl AppState {
         save_vault_atomic(&path, data_ref, pwd).map_err(|e| e.to_string())?;
 
         guard.last_active = Instant::now();
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn toggle_favorite_by_id(&self, id: &str) -> Result<VaultSnapshotResponse, String> {
@@ -350,7 +465,7 @@ impl AppState {
         save_vault_atomic(&path, data_ref, pwd).map_err(|e| e.to_string())?;
 
         guard.last_active = Instant::now();
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn query(
@@ -374,7 +489,7 @@ impl AppState {
         };
         guard.last_active = Instant::now();
 
-        Self::snapshot_from_guard(&guard, Some(filtered))
+        self.snapshot_from_guard(&guard, Some(filtered))
     }
 
     pub fn set_auto_lock_minutes(&self, minutes: u32) -> Result<VaultStatus, String> {
@@ -402,7 +517,7 @@ impl AppState {
         save_vault_atomic(&path, data_ref, pwd).map_err(|e| e.to_string())?;
 
         guard.last_active = Instant::now();
-        Ok(Self::status_from_guard(&guard))
+        Ok(self.status_from_guard(&guard))
     }
 
     pub fn export_backup(&self, destination_path: &Path) -> Result<(), String> {
@@ -428,7 +543,7 @@ impl AppState {
         guard.master_password = Some(Zeroizing::new(master_password.to_string()));
         guard.last_active = Instant::now();
 
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 
     pub fn recover_backup(&self, master_password: &str) -> Result<VaultSnapshotResponse, String> {
@@ -444,7 +559,7 @@ impl AppState {
         guard.master_password = Some(Zeroizing::new(master_password.to_string()));
         guard.last_active = Instant::now();
 
-        Self::snapshot_from_guard(&guard, None)
+        self.snapshot_from_guard(&guard, None)
     }
 }
 
@@ -589,5 +704,95 @@ mod tests {
             .restore_backup(&exported_path, "pin1234")
             .expect("restore exported backup");
         assert_eq!(restored.entries.len(), 2);
+    }
+
+    struct MockVerifier {
+        available: bool,
+        allow_verify: Mutex<bool>,
+    }
+
+    impl MockVerifier {
+        fn new(available: bool, allow_verify: bool) -> Self {
+            Self {
+                available,
+                allow_verify: Mutex::new(allow_verify),
+            }
+        }
+
+        fn set_allow_verify(&self, allow: bool) {
+            *self.allow_verify.lock().unwrap() = allow;
+        }
+    }
+
+    impl ConsentVerifier for MockVerifier {
+        fn is_available(&self) -> bool {
+            self.available
+        }
+
+        fn verify(&self, _message: &str) -> Result<(), String> {
+            if *self.allow_verify.lock().unwrap() {
+                Ok(())
+            } else {
+                Err("Verifikasi Windows Hello dibatalkan.".to_string())
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_windows_hello_enable_unlock_cancel_and_disable_workflow() {
+        let dir = tempdir().expect("tempdir");
+        let vault_path = dir.path().join("winhello-session.vault");
+        let verifier = Arc::new(MockVerifier::new(true, true));
+        let state = AppState::new_with_verifier(vault_path.clone(), verifier.clone());
+
+        let st0 = state.status();
+        assert!(st0.windows_hello_available);
+        assert!(!st0.windows_hello_enabled);
+
+        // Initialize vault and add an entry
+        state
+            .unlock_or_init("obsidian-pin-8888", None)
+            .expect("init vault");
+        state
+            .upsert_raw(None, "github #dev\nemail: dev@local.io\npass: ghsecret", Some(true))
+            .expect("add entry");
+
+        // Enable Windows Hello while unlocked
+        let st_enabled = state
+            .enable_windows_hello(None)
+            .expect("enable windows hello");
+        assert!(st_enabled.windows_hello_enabled);
+
+        // Lock vault
+        state.lock();
+        let st_locked = state.status();
+        assert!(!st_locked.unlocked);
+        assert!(st_locked.windows_hello_enabled);
+
+        // Simulate user canceling Windows Hello prompt
+        verifier.set_allow_verify(false);
+        let canceled_res = state.unlock_with_windows_hello(None);
+        assert!(canceled_res.is_err());
+        assert!(!state.status().unlocked);
+
+        // Simulate user approving Windows Hello prompt
+        verifier.set_allow_verify(true);
+        let unlocked_snap = state
+            .unlock_with_windows_hello(None)
+            .expect("unlock with windows hello");
+        assert!(unlocked_snap.status.unlocked);
+        assert!(unlocked_snap.status.windows_hello_enabled);
+        assert_eq!(unlocked_snap.entries.len(), 1);
+        assert_eq!(unlocked_snap.entries[0].title, "github");
+
+        // Disable Windows Hello
+        let st_disabled = state
+            .disable_windows_hello()
+            .expect("disable windows hello");
+        assert!(!st_disabled.windows_hello_enabled);
+
+        state.lock();
+        assert!(state.unlock_with_windows_hello(None).is_err());
     }
 }
