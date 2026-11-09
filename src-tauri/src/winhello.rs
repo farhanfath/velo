@@ -106,12 +106,6 @@ extern "system" {
 }
 
 #[cfg(target_os = "windows")]
-#[link(name = "user32")]
-extern "system" {
-    fn GetForegroundWindow() -> isize;
-}
-
-#[cfg(target_os = "windows")]
 pub fn dpapi_protect(plaintext: &[u8], entropy: &[u8]) -> Result<Vec<u8>, String> {
     let mut data_in = CRYPTOAPI_BLOB {
         cbData: plaintext.len() as u32,
@@ -337,7 +331,6 @@ pub fn request_windows_hello_verification_os(message: &str) -> Result<(), String
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    let hwnd = unsafe { GetForegroundWindow() };
     let safe_msg = message.replace('\'', "''");
     let script = format!(
         "\
@@ -346,18 +339,7 @@ $null = [Windows.Security.Credentials.UI.UserConsentVerifier, Windows.Security.C
 $null = [Windows.Security.Credentials.UI.UserConsentVerificationResult, Windows.Security.Credentials.UI, ContentType = WindowsRuntime]; \
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {{ $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' }})[0]; \
 $asTask = $asTaskGeneric.MakeGenericMethod([Windows.Security.Credentials.UI.UserConsentVerificationResult]); \
-$op = $null; \
-if ({hwnd} -ne 0) {{ \
-    try {{ \
-        $code = 'using System; using System.Runtime.InteropServices; public static class VeloWinHelloInterop {{ [DllImport(\"combase.dll\", PreserveSig = true)] private static extern int RoGetActivationFactory([MarshalAs(UnmanagedType.HString)] string classId, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object factory); [ComImport, Guid(\"39E050C3-4E74-441A-8DC0-B81104DF949C\"), InterfaceType(ComInterfaceType.InterfaceIsIInspectable)] private interface IUserConsentVerifierInterop {{ [PreserveSig] int RequestVerificationForWindowAsync(IntPtr appWindow, [MarshalAs(UnmanagedType.HString)] string message, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object asyncOperation); }} public static object RequestForWindow(long hwnd, string msg, Guid asyncIid) {{ Guid factoryIid = new Guid(\"39E050C3-4E74-441A-8DC0-B81104DF949C\"); object factory; if (RoGetActivationFactory(\"Windows.Security.Credentials.UI.UserConsentVerifier\", ref factoryIid, out factory) == 0 && factory != null) {{ object op; int hr = ((IUserConsentVerifierInterop)factory).RequestVerificationForWindowAsync(new IntPtr(hwnd), msg, ref asyncIid, out op); if (hr == 0) return op; }} return null; }} }}'; \
-        Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue; \
-        $asyncIid = [Windows.Security.Credentials.UI.UserConsentVerifier].GetMethod('RequestVerificationAsync').ReturnType.GUID; \
-        $op = [VeloWinHelloInterop]::RequestForWindow({hwnd}, '{safe_msg}', $asyncIid); \
-    }} catch {{ $op = $null; }} \
-}}; \
-if ($null -eq $op) {{ \
-    $op = [Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync('{safe_msg}'); \
-}}; \
+$op = [Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync('{safe_msg}'); \
 $task = $asTask.Invoke($null, @($op)); \
 $task.Wait(); \
 Write-Output $task.Result.ToString()"

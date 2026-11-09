@@ -8,45 +8,75 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use zeroize::Zeroizing;
 
 #[tauri::command]
-pub fn get_vault_status(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
-    let _ = state.check_idle_and_lock();
-    Ok(state.status())
+pub async fn get_vault_status(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = app_state.check_idle_and_lock();
+        Ok(app_state.status())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn init_or_unlock_vault(
+pub async fn init_or_unlock_vault(
     state: tauri::State<'_, AppState>,
     master_password: String,
     custom_path: Option<String>,
 ) -> Result<VaultSnapshotResponse, String> {
-    state.unlock_or_init(&master_password, custom_path.as_deref())
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.unlock_or_init(&master_password, custom_path.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn lock_vault(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
-    state.lock();
-    Ok(state.status())
+pub async fn lock_vault(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.lock();
+        Ok(app_state.status())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn enable_windows_hello(
+pub async fn enable_windows_hello(
     state: tauri::State<'_, AppState>,
     master_password: Option<String>,
 ) -> Result<VaultStatus, String> {
-    state.enable_windows_hello(master_password.as_deref())
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.enable_windows_hello(master_password.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn disable_windows_hello(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
-    state.disable_windows_hello()
+pub async fn disable_windows_hello(state: tauri::State<'_, AppState>) -> Result<VaultStatus, String> {
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.disable_windows_hello()
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn unlock_with_windows_hello(
+pub async fn unlock_with_windows_hello(
     state: tauri::State<'_, AppState>,
     custom_path: Option<String>,
 ) -> Result<VaultSnapshotResponse, String> {
-    state.unlock_with_windows_hello(custom_path.as_deref())
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.unlock_with_windows_hello(custom_path.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -118,28 +148,43 @@ pub fn update_auto_lock_minutes(
 }
 
 #[tauri::command]
-pub fn export_vault_backup(
+pub async fn export_vault_backup(
     state: tauri::State<'_, AppState>,
     destination_path: String,
 ) -> Result<(), String> {
-    state.export_backup(Path::new(&destination_path))
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.export_backup(Path::new(&destination_path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn restore_vault_backup(
+pub async fn restore_vault_backup(
     state: tauri::State<'_, AppState>,
     source_path: String,
     master_password: String,
 ) -> Result<VaultSnapshotResponse, String> {
-    state.restore_backup(Path::new(&source_path), &master_password)
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.restore_backup(Path::new(&source_path), &master_password)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn recover_from_bak(
+pub async fn recover_from_bak(
     state: tauri::State<'_, AppState>,
     master_password: String,
 ) -> Result<VaultSnapshotResponse, String> {
-    state.recover_backup(&master_password)
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.recover_backup(&master_password)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

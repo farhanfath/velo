@@ -29,8 +29,9 @@ pub struct InnerSession {
     pub auto_lock_minutes: u32,
 }
 
+#[derive(Clone)]
 pub struct AppState {
-    pub session: Mutex<InnerSession>,
+    pub session: Arc<Mutex<InnerSession>>,
     pub verifier: Arc<dyn ConsentVerifier>,
 }
 
@@ -44,13 +45,13 @@ impl AppState {
         verifier: Arc<dyn ConsentVerifier>,
     ) -> Self {
         Self {
-            session: Mutex::new(InnerSession {
+            session: Arc::new(Mutex::new(InnerSession {
                 vault_path: default_vault_path,
                 data: None,
                 master_password: None,
                 last_active: Instant::now(),
                 auto_lock_minutes: 5,
-            }),
+            })),
             verifier,
         }
     }
@@ -191,9 +192,6 @@ impl AppState {
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
             {
-                if path.exists() {
-                    let _ = load_vault(&path, override_pwd).map_err(|e| e.to_string())?;
-                }
                 Zeroizing::new(override_pwd.to_string())
             } else if let Some(ref session_pwd) = guard.master_password {
                 session_pwd.clone()
@@ -205,6 +203,10 @@ impl AppState {
             };
             (path, pwd)
         };
+
+        if master_password_override.is_some() && vault_path.exists() {
+            let _ = load_vault(&vault_path, &resolved_password).map_err(|e| e.to_string())?;
+        }
 
         self.verifier
             .verify("Velo — Konfirmasi Windows Hello untuk mengaktifkan Quick-Unlock")?;
