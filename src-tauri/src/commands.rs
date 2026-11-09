@@ -241,6 +241,49 @@ pub fn copy_to_clipboard(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn set_window_display_mode(
+    window: tauri::WebviewWindow,
+    mode: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if mode == "spotlight" {
+            let _ = window.set_resizable(false);
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 640.0,
+                height: 420.0,
+            }));
+            let _ = window.center();
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        } else {
+            let _ = window.set_resizable(true);
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 1160.0,
+                height: 760.0,
+            }));
+            let _ = window.center();
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = window.hide();
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

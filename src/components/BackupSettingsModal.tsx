@@ -69,6 +69,25 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [shortcutMode, setShortcutMode] = useState<"spotlight" | "full">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("velo_default_shortcut_mode");
+      if (saved === "spotlight" || saved === "full") return saved;
+    }
+    return "spotlight";
+  });
+
+  const handleShortcutModeChange = (mode: "spotlight" | "full") => {
+    setShortcutMode(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("velo_default_shortcut_mode", mode);
+    }
+    setSuccessMessage(
+      mode === "spotlight"
+        ? "Pintasan Ctrl+Shift+Space akan membuka Mode Spotlight ringkas."
+        : "Pintasan Ctrl+Shift+Space akan membuka Jendela Penuh."
+    );
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -360,6 +379,36 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2 flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-[#A1A1AA]">
+                Mode Tampilan Saat Shortcut (Ctrl+Shift+Space) Dipanggil:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleShortcutModeChange("spotlight")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border active:scale-[0.98] transition-all cursor-pointer ${
+                    shortcutMode === "spotlight"
+                      ? "bg-[#10B981] text-[#09090B] border-[#10B981] font-semibold"
+                      : "bg-[#09090B] hover:bg-[#18181C] text-[#A1A1AA] border-white/[0.07]"
+                  }`}
+                >
+                  Mode Spotlight (Ringkas · Rekomendasi)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleShortcutModeChange("full")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border active:scale-[0.98] transition-all cursor-pointer ${
+                    shortcutMode === "full"
+                      ? "bg-[#10B981] text-[#09090B] border-[#10B981] font-semibold"
+                      : "bg-[#09090B] hover:bg-[#18181C] text-[#A1A1AA] border-white/[0.07]"
+                  }`}
+                >
+                  Mode Jendela Penuh
+                </button>
+              </div>
             </div>
           </section>
 

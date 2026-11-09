@@ -16,6 +16,7 @@ interface TopCommandBarProps {
   onOpenBulkPaste: () => void;
   onOpenSettings: () => void;
   onLockVault: () => void;
+  onSwitchToSpotlight?: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -27,6 +28,7 @@ export const TopCommandBar: React.FC<TopCommandBarProps> = ({
   onOpenBulkPaste,
   onOpenSettings,
   onLockVault,
+  onSwitchToSpotlight,
   searchInputRef,
 }) => {
   const internalRef = useRef<HTMLInputElement | null>(null);
@@ -121,6 +123,18 @@ export const TopCommandBar: React.FC<TopCommandBarProps> = ({
               Ctrl+Shift+V
             </kbd>
           </button>
+
+          {onSwitchToSpotlight && (
+            <button
+              type="button"
+              onClick={onSwitchToSpotlight}
+              title="Kecilkan ke Mode Spotlight Ringkas (Ctrl+Shift+Space)"
+              className="px-3 py-2 rounded-lg bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#F4F4F5] font-medium text-xs flex items-center gap-2 active:scale-[0.98] transition-all duration-150 cursor-pointer"
+            >
+              <MagnifyingGlass size={15} weight="duotone" className="text-[#10B981]" />
+              <span>Spotlight</span>
+            </button>
+          )}
 
           <button
             type="button"

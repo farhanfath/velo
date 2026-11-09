@@ -16,8 +16,8 @@
         "title": "Velo — Personal Credential Vault",
         "width": 1160,
         "height": 760,
-        "minWidth": 880,
-        "minHeight": 580,
+        "minWidth": 580,
+        "minHeight": 360,
         "resizable": true,
         "fullscreen": false
       }

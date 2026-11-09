@@ -908,3 +908,39 @@ export async function disableAutostart(): Promise<void> {
   }
   mockAutostart = false;
 }
+
+export async function setWindowDisplayMode(
+  mode: "spotlight" | "full"
+): Promise<void> {
+  if (isTauriRuntime()) {
+    await invoke("set_window_display_mode", { mode });
+  }
+}
+
+export async function hideWindow(): Promise<void> {
+  if (isTauriRuntime()) {
+    await invoke("hide_window");
+  }
+}
+
+export async function subscribeSummonSpotlight(
+  onSummon: () => void
+): Promise<UnlistenFn> {
+  if (isTauriRuntime()) {
+    return listen("velo://summon-spotlight", () => {
+      onSummon();
+    });
+  }
+  return () => {};
+}
+
+export async function subscribeSwitchFullMode(
+  onSwitch: () => void
+): Promise<UnlistenFn> {
+  if (isTauriRuntime()) {
+    return listen("velo://switch-full-mode", () => {
+      onSwitch();
+    });
+  }
+  return () => {};
+}

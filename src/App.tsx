@@ -14,22 +14,28 @@ import { BulkPasteModal } from "./components/BulkPasteModal";
 import { EntryCard } from "./components/EntryCard";
 import { QuickEntryModal } from "./components/QuickEntryModal";
 import { SidebarRail } from "./components/SidebarRail";
+import { SpotlightOverlay } from "./components/SpotlightOverlay";
 import { TopCommandBar } from "./components/TopCommandBar";
 import { UnlockScreen } from "./components/UnlockScreen";
 import {
   bulkImportFromRaw,
   changeMasterPassword,
+  copyToClipboard,
   deleteEntry,
   disableWindowsHello,
   enableWindowsHello,
   exportVaultBackup,
   filterEntries,
   getVaultStatus,
+  hideWindow,
   initOrUnlockVault,
   lockVault,
   queryVault,
   recoverFromBak,
   restoreVaultBackup,
+  setWindowDisplayMode,
+  subscribeSummonSpotlight,
+  subscribeSwitchFullMode,
   subscribeVaultLocked,
   toggleFavorite,
   unlockWithWindowsHello,
@@ -69,7 +75,49 @@ export const App: React.FC = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  const [windowMode, setWindowMode] = useState<"spotlight" | "full">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("velo_window_mode");
+      if (saved === "spotlight" || saved === "full") return saved;
+    }
+    return "full";
+  });
+
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const switchToSpotlight = useCallback(async () => {
+    setWindowMode("spotlight");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("velo_window_mode", "spotlight");
+    }
+    await setWindowDisplayMode("spotlight");
+  }, []);
+
+  const switchToFull = useCallback(async () => {
+    setWindowMode("full");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("velo_window_mode", "full");
+    }
+    await setWindowDisplayMode("full");
+  }, []);
+
+  const handleSpotlightCopySecret = useCallback(async (entry: VaultEntry) => {
+    const secretField = entry.fields.find((f) => f.kind === "secret");
+    if (secretField) {
+      await copyToClipboard(secretField.value, true);
+    }
+  }, []);
+
+  const handleSpotlightCopyEmail = useCallback(async (entry: VaultEntry) => {
+    const emailField = entry.fields.find((f) => f.kind === "email");
+    if (emailField) {
+      await copyToClipboard(emailField.value, false);
+    }
+  }, []);
+
+  const handleSpotlightClose = useCallback(async () => {
+    await hideWindow();
+  }, []);
 
   const applySnapshot = useCallback((snap: VaultSnapshotResponse) => {
     setStatus(snap.status);
@@ -103,6 +151,9 @@ export const App: React.FC = () => {
       .catch(() => {});
 
     let unlisten: (() => void) | null = null;
+    let unlistenSummon: (() => void) | null = null;
+    let unlistenSwitchFull: (() => void) | null = null;
+
     subscribeVaultLocked(() => {
       clearSessionState();
     })
@@ -111,8 +162,37 @@ export const App: React.FC = () => {
       })
       .catch(() => {});
 
+    subscribeSummonSpotlight(() => {
+      const pref =
+        (typeof window !== "undefined" &&
+          localStorage.getItem("velo_default_shortcut_mode")) ||
+        "spotlight";
+      if (pref === "spotlight") {
+        setWindowMode("spotlight");
+        void setWindowDisplayMode("spotlight");
+      } else {
+        setWindowMode("full");
+        void setWindowDisplayMode("full");
+      }
+    })
+      .then((fn) => {
+        unlistenSummon = fn;
+      })
+      .catch(() => {});
+
+    subscribeSwitchFullMode(() => {
+      setWindowMode("full");
+      void setWindowDisplayMode("full");
+    })
+      .then((fn) => {
+        unlistenSwitchFull = fn;
+      })
+      .catch(() => {});
+
     return () => {
       if (unlisten) unlisten();
+      if (unlistenSummon) unlistenSummon();
+      if (unlistenSwitchFull) unlistenSwitchFull();
     };
   }, [clearSessionState]);
 
@@ -270,6 +350,27 @@ export const App: React.FC = () => {
     setFavoritesOnly(false);
   };
 
+  if (windowMode === "spotlight") {
+    return (
+      <div className="w-screen h-screen bg-[#09090B] text-[#F4F4F5] overflow-hidden">
+        <SpotlightOverlay
+          status={status}
+          entries={allEntries}
+          onCopySecret={handleSpotlightCopySecret}
+          onCopyEmail={handleSpotlightCopyEmail}
+          onExpandToFull={switchToFull}
+          onClose={handleSpotlightClose}
+          onUnlock={async (pwd) => {
+            await handleUnlock(pwd);
+          }}
+          onUnlockWithWindowsHello={async () => {
+            await handleUnlockWithWindowsHello();
+          }}
+        />
+      </div>
+    );
+  }
+
   if (!status.unlocked) {
     return (
       <UnlockScreen
@@ -300,6 +401,7 @@ export const App: React.FC = () => {
         onOpenBulkPaste={() => setIsBulkModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onLockVault={handleLockVault}
+        onSwitchToSpotlight={switchToSpotlight}
         searchInputRef={searchInputRef}
       />
 

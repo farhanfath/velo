@@ -15,17 +15,21 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-fn toggle_main_window(app: &tauri::AppHandle) {
+fn toggle_main_window(app: &tauri::AppHandle) -> bool {
     if let Some(window) = app.get_webview_window("main") {
         let visible = window.is_visible().unwrap_or(false);
         let minimized = window.is_minimized().unwrap_or(false);
         if visible && !minimized {
             let _ = window.hide();
+            false
         } else {
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
+            true
         }
+    } else {
+        false
     }
 }
 
@@ -44,7 +48,9 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, registered_shortcut, event| {
                     if registered_shortcut == &shortcut && event.state() == ShortcutState::Pressed {
-                        toggle_main_window(app);
+                        if toggle_main_window(app) {
+                            let _ = app.emit("velo://summon-spotlight", ());
+                        }
                     }
                 })
                 .build(),
@@ -57,10 +63,17 @@ pub fn run() {
             let default_vault_path = base_dir.join("storage-local.vault");
             app.manage(AppState::new(default_vault_path));
 
+            let spotlight_item = MenuItem::with_id(
+                app,
+                "spotlight",
+                "Buka Spotlight (Ctrl+Shift+Space)",
+                true,
+                None::<&str>,
+            )?;
             let show_hide_item = MenuItem::with_id(
                 app,
                 "show_hide",
-                "Tampilkan / Sembunyikan",
+                "Buka Jendela Penuh",
                 true,
                 None::<&str>,
             )?;
@@ -72,14 +85,42 @@ pub fn run() {
                 None::<&str>,
             )?;
             let quit_item = MenuItem::with_id(app, "quit", "Keluar", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_hide_item, &lock_now_item, &quit_item])?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[&spotlight_item, &show_hide_item, &lock_now_item, &quit_item],
+            )?;
 
             let mut tray_builder = TrayIconBuilder::new()
                 .tooltip("Velo — Personal Credential Vault")
                 .menu(&tray_menu)
                 .on_menu_event(|app_handle, event| match event.id.as_ref() {
+                    "spotlight" => {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.set_resizable(false);
+                            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                                width: 640.0,
+                                height: 420.0,
+                            }));
+                            let _ = window.center();
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                            let _ = app_handle.emit("velo://summon-spotlight", ());
+                        }
+                    }
                     "show_hide" => {
-                        toggle_main_window(app_handle);
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.set_resizable(true);
+                            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                                width: 1160.0,
+                                height: 760.0,
+                            }));
+                            let _ = window.center();
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                            let _ = app_handle.emit("velo://switch-full-mode", ());
+                        }
                     }
                     "lock_now" => {
                         if let Some(state) = app_handle.try_state::<AppState>() {
@@ -157,6 +198,8 @@ pub fn run() {
             commands::restore_vault_backup,
             commands::recover_from_bak,
             commands::copy_to_clipboard,
+            commands::set_window_display_mode,
+            commands::hide_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
