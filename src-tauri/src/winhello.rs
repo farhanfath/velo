@@ -8,7 +8,7 @@ pub const WINHELLO_MAGIC: &[u8; 8] = b"VELOWH01";
 
 pub trait ConsentVerifier: Send + Sync {
     fn is_available(&self) -> bool;
-    fn verify(&self, message: &str) -> Result<(), String>;
+    fn verify(&self, message: &str, hwnd: Option<isize>) -> Result<(), String>;
 }
 
 pub struct SystemConsentVerifier {
@@ -36,8 +36,8 @@ impl ConsentVerifier for SystemConsentVerifier {
             .get_or_init(check_windows_hello_available_os)
     }
 
-    fn verify(&self, message: &str) -> Result<(), String> {
-        request_windows_hello_verification_os(message)
+    fn verify(&self, message: &str, hwnd: Option<isize>) -> Result<(), String> {
+        request_windows_hello_verification_os(message, hwnd)
     }
 }
 
@@ -103,6 +103,13 @@ extern "system" {
 #[link(name = "kernel32")]
 extern "system" {
     fn LocalFree(hMem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+}
+
+#[cfg(target_os = "windows")]
+#[link(name = "user32")]
+extern "system" {
+    fn SetForegroundWindow(hWnd: isize) -> i32;
+    fn BringWindowToTop(hWnd: isize) -> i32;
 }
 
 #[cfg(target_os = "windows")]
@@ -327,9 +334,20 @@ pub fn check_windows_hello_available_os() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-pub fn request_windows_hello_verification_os(message: &str) -> Result<(), String> {
+pub fn request_windows_hello_verification_os(
+    message: &str,
+    hwnd: Option<isize>,
+) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let target_hwnd = hwnd.unwrap_or(0);
+    if target_hwnd != 0 {
+        unsafe {
+            SetForegroundWindow(target_hwnd);
+            BringWindowToTop(target_hwnd);
+        }
+    }
 
     let safe_msg = message.replace('\'', "''");
     let script = format!(
@@ -339,7 +357,18 @@ $null = [Windows.Security.Credentials.UI.UserConsentVerifier, Windows.Security.C
 $null = [Windows.Security.Credentials.UI.UserConsentVerificationResult, Windows.Security.Credentials.UI, ContentType = WindowsRuntime]; \
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {{ $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' }})[0]; \
 $asTask = $asTaskGeneric.MakeGenericMethod([Windows.Security.Credentials.UI.UserConsentVerificationResult]); \
-$op = [Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync('{safe_msg}'); \
+$op = $null; \
+if ({target_hwnd} -ne 0) {{ \
+    try {{ \
+        $code = 'using System; using System.Runtime.InteropServices; public static class VeloWinHelloInterop {{ [DllImport(\"combase.dll\", PreserveSig = true)] private static extern int RoGetActivationFactory([MarshalAs(UnmanagedType.HString)] string classId, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object factory); [ComImport, Guid(\"39E050C3-4E74-441A-8DC0-B81104DF949C\"), InterfaceType(ComInterfaceType.InterfaceIsIInspectable)] private interface IUserConsentVerifierInterop {{ [PreserveSig] int RequestVerificationForWindowAsync(IntPtr appWindow, [MarshalAs(UnmanagedType.HString)] string message, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object asyncOperation); }} public static object RequestForWindow(long hwnd, string msg, Guid asyncIid) {{ Guid factoryIid = new Guid(\"39E050C3-4E74-441A-8DC0-B81104DF949C\"); object factory; int hrFactory = RoGetActivationFactory(\"Windows.Security.Credentials.UI.UserConsentVerifier\", ref factoryIid, out factory); if (hrFactory == 0 && factory != null) {{ object op; int hr = ((IUserConsentVerifierInterop)factory).RequestVerificationForWindowAsync(new IntPtr(hwnd), msg, ref asyncIid, out op); if (hr == 0) return op; }} return null; }} }}'; \
+        Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue; \
+        $asyncIid = [Windows.Security.Credentials.UI.UserConsentVerifier].GetMethod('RequestVerificationAsync').ReturnType.GUID; \
+        $op = [VeloWinHelloInterop]::RequestForWindow({target_hwnd}, '{safe_msg}', $asyncIid); \
+    }} catch {{ $op = $null; }} \
+}}; \
+if ($null -eq $op) {{ \
+    $op = [Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync('{safe_msg}'); \
+}}; \
 $task = $asTask.Invoke($null, @($op)); \
 $task.Wait(); \
 Write-Output $task.Result.ToString()"
@@ -384,7 +413,10 @@ Write-Output $task.Result.ToString()"
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn request_windows_hello_verification_os(_message: &str) -> Result<(), String> {
+pub fn request_windows_hello_verification_os(
+    _message: &str,
+    _hwnd: Option<isize>,
+) -> Result<(), String> {
     Err("Windows Hello hanya didukung di Windows".to_string())
 }
 

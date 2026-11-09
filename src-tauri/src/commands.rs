@@ -45,12 +45,18 @@ pub async fn lock_vault(state: tauri::State<'_, AppState>) -> Result<VaultStatus
 
 #[tauri::command]
 pub async fn enable_windows_hello(
+    window: tauri::WebviewWindow,
     state: tauri::State<'_, AppState>,
     master_password: Option<String>,
 ) -> Result<VaultStatus, String> {
+    #[cfg(target_os = "windows")]
+    let hwnd = window.hwnd().ok().map(|h| h.0 as isize);
+    #[cfg(not(target_os = "windows"))]
+    let hwnd: Option<isize> = None;
+
     let app_state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        app_state.enable_windows_hello(master_password.as_deref())
+        app_state.enable_windows_hello(master_password.as_deref(), hwnd)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -68,12 +74,18 @@ pub async fn disable_windows_hello(state: tauri::State<'_, AppState>) -> Result<
 
 #[tauri::command]
 pub async fn unlock_with_windows_hello(
+    window: tauri::WebviewWindow,
     state: tauri::State<'_, AppState>,
     custom_path: Option<String>,
 ) -> Result<VaultSnapshotResponse, String> {
+    #[cfg(target_os = "windows")]
+    let hwnd = window.hwnd().ok().map(|h| h.0 as isize);
+    #[cfg(not(target_os = "windows"))]
+    let hwnd: Option<isize> = None;
+
     let app_state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        app_state.unlock_with_windows_hello(custom_path.as_deref())
+        app_state.unlock_with_windows_hello(custom_path.as_deref(), hwnd)
     })
     .await
     .map_err(|e| e.to_string())?

@@ -177,6 +177,7 @@ impl AppState {
     pub fn enable_windows_hello(
         &self,
         master_password_override: Option<&str>,
+        hwnd: Option<isize>,
     ) -> Result<VaultStatus, String> {
         if !self.verifier.is_available() {
             return Err(
@@ -209,7 +210,7 @@ impl AppState {
         }
 
         self.verifier
-            .verify("Velo — Konfirmasi Windows Hello untuk mengaktifkan Quick-Unlock")?;
+            .verify("Velo — Konfirmasi Windows Hello untuk mengaktifkan Quick-Unlock", hwnd)?;
 
         save_winhello_secret(&vault_path, &resolved_password)?;
 
@@ -228,6 +229,7 @@ impl AppState {
     pub fn unlock_with_windows_hello(
         &self,
         custom_path: Option<&str>,
+        hwnd: Option<isize>,
     ) -> Result<VaultSnapshotResponse, String> {
         let path = {
             let mut guard = self.session.lock().expect("lock session");
@@ -251,7 +253,7 @@ impl AppState {
         }
 
         self.verifier
-            .verify("Velo — Verifikasi identitas Anda untuk membuka brankas lokal")?;
+            .verify("Velo — Verifikasi identitas Anda untuk membuka brankas lokal", hwnd)?;
 
         let master_password = load_winhello_secret(&path)?;
         let data = match load_vault(&path, &master_password) {
@@ -731,7 +733,7 @@ mod tests {
             self.available
         }
 
-        fn verify(&self, _message: &str) -> Result<(), String> {
+        fn verify(&self, _message: &str, _hwnd: Option<isize>) -> Result<(), String> {
             if *self.allow_verify.lock().unwrap() {
                 Ok(())
             } else {
@@ -762,7 +764,7 @@ mod tests {
 
         // Enable Windows Hello while unlocked
         let st_enabled = state
-            .enable_windows_hello(None)
+            .enable_windows_hello(None, None)
             .expect("enable windows hello");
         assert!(st_enabled.windows_hello_enabled);
 
@@ -774,14 +776,14 @@ mod tests {
 
         // Simulate user canceling Windows Hello prompt
         verifier.set_allow_verify(false);
-        let canceled_res = state.unlock_with_windows_hello(None);
+        let canceled_res = state.unlock_with_windows_hello(None, None);
         assert!(canceled_res.is_err());
         assert!(!state.status().unlocked);
 
         // Simulate user approving Windows Hello prompt
         verifier.set_allow_verify(true);
         let unlocked_snap = state
-            .unlock_with_windows_hello(None)
+            .unlock_with_windows_hello(None, None)
             .expect("unlock with windows hello");
         assert!(unlocked_snap.status.unlocked);
         assert!(unlocked_snap.status.windows_hello_enabled);
@@ -795,6 +797,6 @@ mod tests {
         assert!(!st_disabled.windows_hello_enabled);
 
         state.lock();
-        assert!(state.unlock_with_windows_hello(None).is_err());
+        assert!(state.unlock_with_windows_hello(None, None).is_err());
     }
 }
