@@ -4,11 +4,17 @@ import {
   Check,
   Key,
   NotePencil,
+  Sparkle,
   Star,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { normalizeEmail, parseEntryText, parsePreview } from "../lib/tauri-api";
+import {
+  generatePassword,
+  generatePassphrase,
+  generatePin,
+} from "../lib/generator";
 import type { ParsedEntryDraft, VaultEntry } from "../types/vault";
 
 interface QuickEntryModalProps {
@@ -33,6 +39,19 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [preview, setPreview] = useState<ParsedEntryDraft | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [generatorBadge, setGeneratorBadge] = useState<string | null>(null);
+
+  const insertGeneratedSecret = (key: string, secretValue: string) => {
+    setRawText((prev) => {
+      const trimmed = prev.trimEnd();
+      if (!trimmed) {
+        return `${key}: ${secretValue}`;
+      }
+      return `${trimmed}\n${key}: ${secretValue}`;
+    });
+    setGeneratorBadge(`${key}: disisipkan`);
+    setTimeout(() => setGeneratorBadge(null), 2500);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -175,6 +194,46 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
                 }
                 className="w-full bg-[#09090B] border border-white/[0.07] rounded-lg p-3.5 text-sm font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] leading-relaxed resize-y transition-colors duration-150"
               />
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-0.5">
+                <div className="flex items-center gap-1.5 text-xs text-[#A1A1AA]">
+                  <Sparkle size={14} weight="duotone" className="text-[#10B981]" />
+                  <span>Generator Sandi:</span>
+                  {generatorBadge && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/15 border border-emerald-500/30 text-[#10B981] font-mono animate-fade-in">
+                      {generatorBadge}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      insertGeneratedSecret("pass", generatePassword({ length: 20 }))
+                    }
+                    title="Sisipkan password 20 karakter acak kuat"
+                    className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#10B981] hover:border-[#10B981]/50 transition-colors cursor-pointer"
+                  >
+                    + Pass (20)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertGeneratedSecret("pass", generatePassphrase(4))}
+                    title="Sisipkan passphrase 4 kata yang mudah diingat"
+                    className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#38BDF8] hover:border-[#38BDF8]/50 transition-colors cursor-pointer"
+                  >
+                    + Passphrase (4 kata)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertGeneratedSecret("pin", generatePin(6))}
+                    title="Sisipkan PIN 6 angka acak"
+                    className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#F59E0B] hover:border-[#F59E0B]/50 transition-colors cursor-pointer"
+                  >
+                    + PIN (6 digit)
+                  </button>
+                </div>
+              </div>
 
               <p className="text-xs text-[#A1A1AA]">
                 Gunakan tanda pagar seperti{" "}

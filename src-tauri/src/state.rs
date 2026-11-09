@@ -565,6 +565,56 @@ impl AppState {
 
         self.snapshot_from_guard(&guard, None)
     }
+
+    pub fn change_master_password(
+        &self,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<VaultStatus, String> {
+        let (path, data) = {
+            let guard = self.session.lock().expect("lock session");
+            let data = guard
+                .data
+                .as_ref()
+                .ok_or_else(|| {
+                    "Buka vault terlebih dahulu untuk mengganti Master Password.".to_string()
+                })?
+                .clone();
+            let session_pwd = guard
+                .master_password
+                .as_ref()
+                .ok_or_else(|| "Vault terkunci.".to_string())?;
+
+            if session_pwd.as_str() != current_password.trim() {
+                return Err("Master Password saat ini salah.".to_string());
+            }
+
+            let new_trimmed = new_password.trim();
+            if new_trimmed.is_empty() {
+                return Err("Master Password baru tidak boleh kosong.".to_string());
+            }
+            if new_trimmed == current_password.trim() {
+                return Err(
+                    "Master Password baru tidak boleh sama dengan password saat ini.".to_string(),
+                );
+            }
+
+            (guard.vault_path.clone(), data)
+        };
+
+        let new_trimmed = new_password.trim();
+        save_vault_atomic(&path, &data, new_trimmed).map_err(|e| e.to_string())?;
+
+        if has_winhello_blob(&path) {
+            let _ = save_winhello_secret(&path, new_trimmed);
+        }
+
+        let mut guard = self.session.lock().expect("lock session");
+        guard.master_password = Some(Zeroizing::new(new_trimmed.to_string()));
+        guard.last_active = Instant::now();
+
+        Ok(self.status_from_guard(&guard))
+    }
 }
 
 #[cfg(test)]
@@ -798,5 +848,39 @@ mod tests {
 
         state.lock();
         assert!(state.unlock_with_windows_hello(None, None).is_err());
+    }
+
+    #[test]
+    fn test_change_master_password_re_encrypts_vault() {
+        let dir = tempdir().expect("tempdir");
+        let vault_path = dir.path().join("change-pwd.vault");
+        let state = AppState::new(vault_path.clone());
+
+        // Initialize vault
+        state.unlock_or_init("old-pass-1234", None).expect("init");
+        state
+            .upsert_raw(None, "spotify #music\nemail: a@b.com\npass: sp123", None)
+            .expect("add");
+
+        // Fail if wrong current password
+        let err_res = state.change_master_password("wrong-pass", "new-pass-5678");
+        assert!(err_res.is_err());
+
+        // Change password successfully
+        let ok_res = state.change_master_password("old-pass-1234", "new-pass-5678");
+        assert!(ok_res.is_ok());
+
+        // Lock vault
+        state.lock();
+        assert!(!state.status().unlocked);
+
+        // Old password fails to unlock
+        assert!(state.unlock_or_init("old-pass-1234", None).is_err());
+
+        // New password unlocks and recovers data
+        let reopened = state.unlock_or_init("new-pass-5678", None).expect("reopen");
+        assert!(reopened.status.unlocked);
+        assert_eq!(reopened.entries.len(), 1);
+        assert_eq!(reopened.entries[0].title, "spotify");
     }
 }

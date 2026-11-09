@@ -160,6 +160,20 @@ pub fn update_auto_lock_minutes(
 }
 
 #[tauri::command]
+pub async fn change_master_password(
+    state: tauri::State<'_, AppState>,
+    current_password: String,
+    new_password: String,
+) -> Result<VaultStatus, String> {
+    let app_state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app_state.change_master_password(&current_password, &new_password)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub async fn export_vault_backup(
     state: tauri::State<'_, AppState>,
     destination_path: String,

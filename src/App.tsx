@@ -18,6 +18,7 @@ import { TopCommandBar } from "./components/TopCommandBar";
 import { UnlockScreen } from "./components/UnlockScreen";
 import {
   bulkImportFromRaw,
+  changeMasterPassword,
   deleteEntry,
   disableWindowsHello,
   enableWindowsHello,
@@ -239,6 +240,14 @@ export const App: React.FC = () => {
 
   const handleUpdateAutoLock = async (minutes: number) => {
     const nextStatus = await updateAutoLockMinutes(minutes);
+    setStatus(nextStatus);
+  };
+
+  const handleChangeMasterPassword = async (
+    currentPassword: string,
+    newPassword: string
+  ) => {
+    const nextStatus = await changeMasterPassword(currentPassword, newPassword);
     setStatus(nextStatus);
   };
 
@@ -487,6 +496,7 @@ export const App: React.FC = () => {
         onUpdateAutoLock={handleUpdateAutoLock}
         onEnableWindowsHello={handleEnableWindowsHello}
         onDisableWindowsHello={handleDisableWindowsHello}
+        onChangeMasterPassword={handleChangeMasterPassword}
         onExportBackup={handleExportBackup}
         onRestoreBackup={handleRestoreBackup}
         onRecoverFromBak={handleRecoverBak}

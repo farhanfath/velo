@@ -10,6 +10,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import type { VaultStatus } from "../types/vault";
+import { pickVaultOpenPath } from "../lib/tauri-api";
 
 interface UnlockScreenProps {
   status: VaultStatus;
@@ -252,14 +253,27 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
                 >
                   Lokasi File .vault Kustom
                 </label>
-                <input
-                  id="unlock-custom-path"
-                  type="text"
-                  value={customPath}
-                  onChange={(e) => setCustomPath(e.target.value)}
-                  placeholder="Contoh: D:\Backup\storage-local.vault"
-                  className="w-full bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-sm font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    id="unlock-custom-path"
+                    type="text"
+                    value={customPath}
+                    onChange={(e) => setCustomPath(e.target.value)}
+                    placeholder="Contoh: D:\Backup\storage-local.vault"
+                    className="flex-1 bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-sm font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const p = await pickVaultOpenPath("Pilih Lokasi File .vault Kustom");
+                      if (p) setCustomPath(p);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#A1A1AA] hover:text-[#F4F4F5] bg-[#18181B] hover:bg-[#27272A] border border-white/[0.07] rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    <FolderOpen size={16} weight="duotone" />
+                    <span>Pilih...</span>
+                  </button>
+                </div>
               </div>
             )}
 

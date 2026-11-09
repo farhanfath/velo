@@ -36,6 +36,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, registered_shortcut, event| {
@@ -119,6 +123,12 @@ pub fn run() {
                 }
             });
 
+            if std::env::args().any(|arg| arg == "--minimized") {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -142,6 +152,7 @@ pub fn run() {
             commands::toggle_favorite,
             commands::query_vault,
             commands::update_auto_lock_minutes,
+            commands::change_master_password,
             commands::export_vault_backup,
             commands::restore_vault_backup,
             commands::recover_from_bak,

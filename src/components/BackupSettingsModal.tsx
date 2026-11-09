@@ -1,17 +1,27 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   CheckCircle,
   Clock,
   ClockCounterClockwise,
   DownloadSimple,
   Fingerprint,
+  FolderOpen,
   GearSix,
+  Key,
   Keyboard,
+  RocketLaunch,
   UploadSimple,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import type { VaultStatus } from "../types/vault";
+import {
+  disableAutostart,
+  enableAutostart,
+  isAutostartEnabled,
+  pickVaultOpenPath,
+  pickVaultSavePath,
+} from "../lib/tauri-api";
 
 interface BackupSettingsModalProps {
   isOpen: boolean;
@@ -20,6 +30,7 @@ interface BackupSettingsModalProps {
   onUpdateAutoLock: (minutes: number) => Promise<void>;
   onEnableWindowsHello: () => Promise<void>;
   onDisableWindowsHello: () => Promise<void>;
+  onChangeMasterPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onExportBackup: (destinationPath: string) => Promise<void>;
   onRestoreBackup: (sourcePath: string, masterPassword: string) => Promise<void>;
   onRecoverFromBak: (masterPassword: string) => Promise<void>;
@@ -40,6 +51,7 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
   onUpdateAutoLock,
   onEnableWindowsHello,
   onDisableWindowsHello,
+  onChangeMasterPassword,
   onExportBackup,
   onRestoreBackup,
   onRecoverFromBak,
@@ -50,9 +62,19 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
   const [restorePath, setRestorePath] = useState("");
   const [restorePassword, setRestorePassword] = useState("");
   const [bakPassword, setBakPassword] = useState("");
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmNewPwd, setConfirmNewPwd] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      isAutostartEnabled().then(setAutostartEnabled).catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -74,6 +96,34 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : "Gagal memperbarui Auto-Lock"
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleToggleAutostart = async () => {
+    clearFeedback();
+    setIsBusy(true);
+    try {
+      if (autostartEnabled) {
+        await disableAutostart();
+        setAutostartEnabled(false);
+        setSuccessMessage("Autostart saat Windows menyala dinonaktifkan.");
+      } else {
+        await enableAutostart();
+        setAutostartEnabled(true);
+        setSuccessMessage(
+          "Velo akan otomatis berjalan di background saat Windows menyala."
+        );
+      }
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Gagal mengatur autostart"
       );
     } finally {
       setIsBusy(false);
@@ -102,6 +152,42 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
           : typeof err === "string"
             ? err
             : "Gagal memperbarui status Windows Hello"
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleChangeMasterPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    if (!currentPwd.trim()) {
+      setErrorMessage("Masukkan Master Password saat ini.");
+      return;
+    }
+    if (!newPwd.trim()) {
+      setErrorMessage("Master Password baru tidak boleh kosong.");
+      return;
+    }
+    if (newPwd.trim() !== confirmNewPwd.trim()) {
+      setErrorMessage("Konfirmasi Master Password baru tidak cocok.");
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      await onChangeMasterPassword(currentPwd, newPwd);
+      setSuccessMessage("Master Password brankas berhasil diperbarui.");
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmNewPwd("");
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Gagal memperbarui Master Password"
       );
     } finally {
       setIsBusy(false);
@@ -280,6 +366,42 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
           <section className="pt-6 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
+                <RocketLaunch size={18} weight="duotone" className="text-[#10B981]" />
+                <h3 className="text-sm font-semibold text-[#F4F4F5]">
+                  Startup Windows (Autostart)
+                </h3>
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums border ${
+                    autostartEnabled
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-[#10B981]"
+                      : "bg-[#09090B] border-white/[0.07] text-[#A1A1AA]"
+                  }`}
+                >
+                  {autostartEnabled ? "Aktif" : "Nonaktif"}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={handleToggleAutostart}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer ${
+                  autostartEnabled
+                    ? "bg-[#09090B] hover:bg-[#18181C] text-[#F43F5E] border-[#F43F5E]/30"
+                    : "bg-[#10B981] hover:bg-emerald-400 text-[#09090B] border-[#10B981]"
+                }`}
+              >
+                {autostartEnabled ? "Nonaktifkan Autostart" : "Aktifkan Autostart"}
+              </button>
+            </div>
+            <p className="text-xs text-[#A1A1AA]">
+              Buka Velo secara otomatis di System Tray saat login Windows dengan argumen <code className="text-[#F4F4F5] bg-[#09090B] px-1 py-0.5 rounded border border-white/[0.07] font-mono">--minimized</code>, siap dipanggil kapan saja dengan shortcut global <kbd className="px-1 py-0.5 rounded bg-[#09090B] border border-white/[0.07] font-mono text-[11px] text-[#F4F4F5]">Ctrl+Shift+Space</kbd>.
+            </p>
+          </section>
+
+          <section className="pt-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
                 <Fingerprint size={18} weight="duotone" className="text-[#10B981]" />
                 <h3 className="text-sm font-semibold text-[#F4F4F5]">
                   Windows Hello Quick-Unlock (DPAPI)
@@ -321,6 +443,79 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
             </p>
           </section>
 
+          <form onSubmit={handleChangeMasterPassword} noValidate className="pt-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <Key size={18} weight="duotone" className="text-[#10B981]" />
+              <h3 className="text-sm font-semibold text-[#F4F4F5]">
+                Ganti Master Password Brankas
+              </h3>
+            </div>
+            <p className="text-xs text-[#A1A1AA]">
+              Mengenkripsi ulang seluruh data brankas secara atomik dengan Master Password baru menggunakan Argon2id + XChaCha20-Poly1305. Kredensial Windows Hello juga otomatis diperbarui.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="current-master-password"
+                  className="text-xs font-medium text-[#A1A1AA]"
+                >
+                  Password Saat Ini
+                </label>
+                <input
+                  id="current-master-password"
+                  type="password"
+                  value={currentPwd}
+                  onChange={(e) => setCurrentPwd(e.target.value)}
+                  placeholder="Master Password lama..."
+                  className="bg-[#09090B] border border-white/[0.07] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="new-master-password"
+                  className="text-xs font-medium text-[#A1A1AA]"
+                >
+                  Password Baru
+                </label>
+                <input
+                  id="new-master-password"
+                  type="password"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  placeholder="Password baru..."
+                  className="bg-[#09090B] border border-white/[0.07] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="confirm-new-master-password"
+                  className="text-xs font-medium text-[#A1A1AA]"
+                >
+                  Konfirmasi Password Baru
+                </label>
+                <input
+                  id="confirm-new-master-password"
+                  type="password"
+                  value={confirmNewPwd}
+                  onChange={(e) => setConfirmNewPwd(e.target.value)}
+                  placeholder="Ulangi password baru..."
+                  className="bg-[#09090B] border border-white/[0.07] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isBusy}
+              className="px-4 py-2 rounded-lg bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-xs font-medium text-[#F4F4F5] active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer"
+            >
+              Simpan Master Password Baru
+            </button>
+          </form>
+
           <form onSubmit={handleExport} noValidate className="pt-6 space-y-3">
             <div className="flex items-center gap-2">
               <DownloadSimple size={18} weight="duotone" className="text-[#10B981]" />
@@ -337,17 +532,31 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
                 Lokasi Tujuan File Backup (.vault)
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  id="export-backup-path"
-                  type="text"
-                  value={exportPath}
-                  onChange={(e) => setExportPath(e.target.value)}
-                  className="flex-1 bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] focus:border-[#10B981] transition-colors duration-150"
-                />
+                <div className="flex-1 flex items-center gap-1.5">
+                  <input
+                    id="export-backup-path"
+                    type="text"
+                    value={exportPath}
+                    onChange={(e) => setExportPath(e.target.value)}
+                    className="flex-1 bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] focus:border-[#10B981] transition-colors duration-150"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const p = await pickVaultSavePath(exportPath);
+                      if (p) setExportPath(p);
+                    }}
+                    title="Pilih lokasi simpan file dengan Windows Explorer"
+                    className="px-2.5 py-2 rounded-lg bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#A1A1AA] hover:text-[#F4F4F5] text-xs font-medium inline-flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                  >
+                    <FolderOpen size={15} weight="duotone" />
+                    <span>Pilih...</span>
+                  </button>
+                </div>
                 <button
                   type="submit"
                   disabled={isBusy}
-                  className="px-4 py-2 rounded-lg bg-[#10B981] hover:bg-emerald-400 text-[#09090B] text-xs font-semibold shrink-0 active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-[#10B981] hover:bg-emerald-400 text-[#09090B] text-xs font-semibold shrink-0 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer"
                 >
                   Ekspor Backup
                 </button>
@@ -371,14 +580,28 @@ export const BackupSettingsModal: React.FC<BackupSettingsModalProps> = ({
                 >
                   Path File Sumber (.vault)
                 </label>
-                <input
-                  id="restore-source-path"
-                  type="text"
-                  value={restorePath}
-                  onChange={(e) => setRestorePath(e.target.value)}
-                  placeholder="D:\Backup\storage-local-backup.vault"
-                  className="bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
-                />
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="restore-source-path"
+                    type="text"
+                    value={restorePath}
+                    onChange={(e) => setRestorePath(e.target.value)}
+                    placeholder="D:\Backup\storage-local-backup.vault"
+                    className="flex-1 bg-[#09090B] border border-white/[0.07] rounded-lg px-3.5 py-2 text-xs font-mono tabular-nums text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#10B981] transition-colors duration-150"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const p = await pickVaultOpenPath("Pilih File Backup Velo (.vault)");
+                      if (p) setRestorePath(p);
+                    }}
+                    title="Cari file .vault dari Windows Explorer"
+                    className="px-2.5 py-2 rounded-lg bg-[#09090B] hover:bg-[#18181C] border border-white/[0.07] text-[#A1A1AA] hover:text-[#F4F4F5] text-xs font-medium inline-flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                  >
+                    <FolderOpen size={15} weight="duotone" />
+                    <span>Pilih...</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">

@@ -687,6 +687,35 @@ export async function updateAutoLockMinutes(
   return getMockStatus();
 }
 
+export async function changeMasterPassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<VaultStatus> {
+  if (isTauriRuntime()) {
+    return invoke<VaultStatus>("change_master_password", {
+      currentPassword,
+      newPassword,
+    });
+  }
+
+  if (!mockStore.unlocked) {
+    throw new Error("Buka vault terlebih dahulu untuk mengganti Master Password.");
+  }
+  if (mockStore.masterPassword && mockStore.masterPassword !== currentPassword.trim()) {
+    throw new Error("Master Password saat ini salah.");
+  }
+  const trimmed = newPassword.trim();
+  if (!trimmed) {
+    throw new Error("Master Password baru tidak boleh kosong.");
+  }
+  if (trimmed === currentPassword.trim()) {
+    throw new Error("Master Password baru tidak boleh sama dengan password saat ini.");
+  }
+
+  mockStore.masterPassword = trimmed;
+  return getMockStatus();
+}
+
 export async function exportVaultBackup(
   destinationPath: string
 ): Promise<void> {
@@ -803,4 +832,79 @@ export async function subscribeVaultLocked(
     });
   }
   return () => {};
+}
+
+export async function pickVaultSavePath(
+  defaultPath?: string
+): Promise<string | null> {
+  if (isTauriRuntime()) {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        title: "Pilih Lokasi Ekspor Backup Velo",
+        defaultPath: defaultPath || "D:\\Backup\\storage-local-backup.vault",
+        filters: [{ name: "Velo Vault (*.vault)", extensions: ["vault"] }],
+      });
+      return path;
+    } catch (e) {
+      console.warn("Failed to open save dialog:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function pickVaultOpenPath(
+  title?: string
+): Promise<string | null> {
+  if (isTauriRuntime()) {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const path = await open({
+        title: title || "Pilih File Velo Vault (.vault)",
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Velo Vault (*.vault)", extensions: ["vault"] }],
+      });
+      if (typeof path === "string") return path;
+      return null;
+    } catch (e) {
+      console.warn("Failed to open file picker:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
+let mockAutostart = false;
+
+export async function isAutostartEnabled(): Promise<boolean> {
+  if (isTauriRuntime()) {
+    try {
+      const { isEnabled } = await import("@tauri-apps/plugin-autostart");
+      return await isEnabled();
+    } catch (e) {
+      console.warn("Failed to check autostart status:", e);
+      return false;
+    }
+  }
+  return mockAutostart;
+}
+
+export async function enableAutostart(): Promise<void> {
+  if (isTauriRuntime()) {
+    const { enable } = await import("@tauri-apps/plugin-autostart");
+    await enable();
+    return;
+  }
+  mockAutostart = true;
+}
+
+export async function disableAutostart(): Promise<void> {
+  if (isTauriRuntime()) {
+    const { disable } = await import("@tauri-apps/plugin-autostart");
+    await disable();
+    return;
+  }
+  mockAutostart = false;
 }
