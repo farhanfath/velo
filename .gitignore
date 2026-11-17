@@ -7,3 +7,6 @@ src-tauri/gen/
 *.vault.bak
 *.vault.tmp
 .DS_Store
+
+.vercel/
+website/.vercel/

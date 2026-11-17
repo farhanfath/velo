@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <meta name="description" content="Rapikan password, email, dan API key dalam satu vault terenkripsi di komputer kamu. Velo untuk Windows: lokal, tanpa akun, tanpa server.">
+  <meta property="og:title" content="Velo — Rahasia kamu. Tetap di komputermu.">
+  <meta property="og:description" content="Dari catatan berantakan ke vault pribadi. Credential vault lokal untuk Windows.">
+  <title>Velo — Rahasia kamu. Tetap di komputermu.</title>
+  <link rel="icon" href="/velo-logo.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Lewati ke konten</a>
+  <header class="wrap"><a class="brand" href="#" aria-label="Velo beranda"><img src="/velo-logo.png" alt="" width="36" height="36">velo<span> / personal vault</span></a><nav aria-label="Navigasi utama"><a href="#workflow">Cara kerja</a><a href="#privacy">Privasi</a><a href="https://github.com/farhanfath/velo">GitHub ↗</a></nav></header>
+  <main id="main">
+    <section class="hero wrap">
+      <div class="intro"><h1>Rahasia kamu.<br>Tetap di <em>komputermu.</em></h1><p>Password di chat. API key di Notepad. Email entah di mana. Satukan semuanya di Velo, vault pribadi yang sepenuhnya lokal.</p><div class="actions"><a class="button" href="https://github.com/farhanfath/velo/releases/latest/download/Velo-Setup.exe">Download untuk Windows <span aria-hidden="true">↓</span></a><a class="quiet" href="#workflow">Lihat cara kerjanya <span aria-hidden="true">↘</span></a></div><p class="fine">Windows 10/11 · x64 · Tanpa akun atau langganan</p></div>
+      <div class="preview" aria-label="Contoh tampilan vault Velo dengan data fiktif"><div class="windowbar"><span class="brand small">velo</span><span class="status">Vault terbuka</span><kbd>Ctrl K</kbd></div><div class="workspace"><aside><span class="muted">WORKSPACE</span><div class="selected">Semua entri <b>3</b></div><div>Favorit <b>1</b></div><span class="muted byemail">BY EMAIL</span><div class="email">hello@example.com</div><span class="muted byemail">TAGS</span><div>#work</div><div>#personal</div><div class="local">Disimpan di perangkat ini</div></aside><div class="entries"><div class="entryheading">Semua entri <span>Data contoh</span></div><article class="credential"><p class="credential-title">GitHub <span>#work</span></p><dl><div><dt>email</dt><dd>hello@example.com</dd></div><div><dt>pass</dt><dd class="secret">••••••••••••••</dd></div></dl><p>Side projects &amp; weekend ideas.</p></article><article class="credential"><p class="credential-title">Figma <span>#work</span></p><dl><div><dt>email</dt><dd>hello@example.com</dd></div><div><dt>pass</dt><dd class="secret">••••••••••••••</dd></div></dl></article><div class="mini-entry">Personal API <span>#personal</span></div></div></div><div class="previewfoot"><span class="status">Lokal. Terenkripsi.</span><span>storage-local.vault</span></div></div>
+    </section>
+    <div class="principles wrap"><span>Tanpa cloud</span><span>Tanpa akun</span><span>Satu file terenkripsi</span><span>Kendali di tanganmu</span></div>
+    <section id="workflow" class="workflow wrap"><div class="sectioncopy"><h2>Catat seperti biasa.<br>Temukan lebih cepat.</h2><p>Nggak perlu isi form satu per satu. Paste catatan dengan format yang sudah kamu kenal. Velo membaca judul, email, password, dan tag secara otomatis.</p><p>Punya banyak catatan? Bulk Paste memisahkan blok catatan dan menampilkan preview sebelum diimpor.</p></div><div class="note-demo"><div class="demo-label">YANG KAMU PASTE</div><pre>GitHub
+email: hello@example.com
+pass: your-secret-here
+#work</pre><div class="parse-result"><span>Terbaca otomatis</span><span>Judul · Email · Password · Tag</span></div></div></section>
+    <section class="speed wrap"><div><h2>Satu shortcut.<br>Langsung ketemu.</h2><p>Panggil Spotlight dari mana saja. Cari akun, tekan Enter untuk menyalin password, lalu lanjut kerja. Clipboard dibersihkan otomatis setelah 30 detik.</p></div><div class="shortcut" aria-label="Shortcut Control Shift Space"><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Space</kbd></div></section>
+    <section id="privacy" class="privacy wrap"><div><h2>Vault punya kamu.<br>Begitu juga kendalinya.</h2><p>Velo menyimpan kredensial dalam file <code>.vault</code> di perangkatmu. Tidak ada server Velo yang menerima isi vault.</p><a class="textlink" href="https://github.com/farhanfath/velo/tree/main/src-tauri/src">Lihat cara Velo bekerja di GitHub ↗</a></div><dl class="security"><div><dt>Enkripsi di perangkat</dt><dd>Argon2id untuk derivasi kunci. XChaCha20-Poly1305 untuk enkripsi vault.</dd></div><div><dt>Kunci dengan caramu</dt><dd>Master password, auto-lock saat idle, dan opsi quick-unlock Windows Hello.</dd></div><div><dt>Backup tetap milikmu</dt><dd>Backup otomatis .vault.bak serta ekspor dan restore file terenkripsi. Simpan salinan di tempat aman.</dd></div></dl></section>
+    <section class="faq wrap"><h2>Sebelum mulai.</h2><div><details><summary>Apakah Velo butuh internet?</summary><p>Menyimpan, mencari, dan membuka vault berjalan lokal tanpa internet. Internet diperlukan untuk mengunduh installer dan komponen Windows bila belum tersedia.</p></details><details><summary>Bagaimana cara install?</summary><p>Download Velo-Setup.exe dari GitHub Release, jalankan installer, lalu buat vault dengan master password. Installer belum ditandatangani digital; Windows mungkin menampilkan peringatan SmartScreen. Periksa sumber unduhan dan checksum di halaman rilis.</p></details><details><summary>Kalau lupa master password?</summary><p>Tidak ada reset password melalui server. Simpan master password dengan aman dan buat backup terenkripsi. Windows Hello adalah opsi quick-unlock, bukan pengganti cadangan master password.</p></details><details><summary>Bisa dipakai di Mac atau Linux?</summary><p>Rilis ini untuk Windows x64. Installer Mac dan Linux belum tersedia.</p></details></div></section>
+    <section class="closing wrap"><h2>Rumah baru<br>untuk rahasiamu.</h2><div><a class="button" href="https://github.com/farhanfath/velo/releases/latest/download/Velo-Setup.exe">Download Velo <span aria-hidden="true">↓</span></a><a class="release-link" href="https://github.com/farhanfath/velo/releases/latest">Catatan rilis &amp; SHA-256 ↗</a></div></section>
+  </main><footer class="wrap"><a class="brand" href="#">velo</a><p>Local by design. Personal by default.</p><a href="https://github.com/farhanfath/velo">Source di GitHub ↗</a></footer>
+</body>
+</html>

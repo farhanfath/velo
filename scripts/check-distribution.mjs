@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const html=fs.readFileSync('website/index.html','utf8');
+for(const id of [...html.matchAll(/href="#([^"]+)"/g)].map(m=>m[1])) assert.ok(html.includes(`id="${id}"`),`Missing anchor ${id}`);
+assert.equal((html.match(/releases\/latest\/download\/Velo-Setup.exe/g)||[]).length,2);
+assert.ok(html.includes('<html lang="id">'));
+assert.ok(!html.includes('<script'));
+const config=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));
+assert.deepEqual(config.bundle.targets,['nsis']);
+assert.equal(config.version,JSON.parse(fs.readFileSync('package.json','utf8')).version);
+console.log('Landing anchors, release links, and installer version: OK');

@@ -1,16 +1,25 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { resetMockVaultForTests } from "../lib/tauri-api";
 
 describe("Storage Local — Dark Obsidian UI & End-to-End Vault Workflow", () => {
   beforeEach(() => {
+    // Keep browser storage deterministic across Node versions.
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, String(value)),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+    });
     resetMockVaultForTests();
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("validates empty master password and initializes/unlocks the vault", async () => {
