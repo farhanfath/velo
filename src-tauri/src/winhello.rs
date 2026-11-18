@@ -469,6 +469,7 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "windows")]
+    #[ignore = "Requires Windows Hello enrolled on the test machine; run with --ignored on configured hardware"]
     fn test_check_windows_hello_available_os_detects_winrt_availability() {
         let available = check_windows_hello_available_os();
         assert!(available, "Expected Windows Hello (Fingerprint/PIN) to be detected as Available via WinRT AsTask");

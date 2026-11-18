@@ -1,6 +1,6 @@
 [package]
 name = "storage-local"
-version = "0.2.0"
+version = "0.2.1"
 description = "100% Local-First Personal Credential & Secret Vault"
 authors = ["Owner"]
 edition = "2021"
