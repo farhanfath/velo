@@ -21,12 +21,12 @@ jobs:
           $target = Join-Path $env:RUNNER_TEMP 'VeloSmokeTest'
           $setup = Start-Process ./Velo-Setup.exe -ArgumentList '/S', "/D=$target" -WindowStyle Hidden -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Installer exited $($setup.ExitCode)" }
-          $binary = Join-Path $target 'Velo.exe'
-          if (!(Test-Path -LiteralPath $binary)) { throw 'Installed Velo.exe missing' }
+          $binary = Join-Path $target 'storage-local.exe'
+          if (!(Test-Path -LiteralPath $binary)) { throw 'Installed application binary missing' }
           $version = (Get-Item -LiteralPath $binary).VersionInfo.ProductVersion
           Write-Output "Installed Velo $version successfully"
           $uninstaller = Join-Path $target 'uninstall.exe'
           if (!(Test-Path -LiteralPath $uninstaller)) { throw 'Uninstaller missing' }
           $remove = Start-Process $uninstaller -ArgumentList '/S', "_?=$target" -WindowStyle Hidden -Wait -PassThru
           if ($remove.ExitCode -ne 0) { throw "Uninstaller exited $($remove.ExitCode)" }
-          if (Test-Path -LiteralPath $binary) { throw 'Uninstall left Velo.exe behind' }
+          if (Test-Path -LiteralPath $binary) { throw 'Uninstall left application binary behind' }
