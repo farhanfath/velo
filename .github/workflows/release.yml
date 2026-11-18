@@ -5,11 +5,22 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
 jobs:
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate signing configuration
+        if: vars.ENABLE_SIGNPATH == 'true'
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_CERTIFICATE_THUMBPRINT }}
+        run: |
+          if (!$env:SIGNPATH_API_TOKEN -or !$env:SIGNPATH_ORGANIZATION_ID) { throw 'SignPath credentials missing' }
+          if ($env:SIGNPATH_CERTIFICATE_THUMBPRINT -notmatch '^[0-9a-fA-F]{40}$') { throw 'SignPath certificate thumbprint missing or invalid' }
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -20,16 +31,87 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm test
+      - name: Test signature verification
+        shell: pwsh
+        run: ./scripts/verify-signature.test.ps1
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
-      - run: npm run tauri build -- --bundles nsis
-      - name: Prepare installer and checksum
+      - run: npm run tauri build -- --no-bundle
+      - name: Upload application for signing
+        if: vars.ENABLE_SIGNPATH == 'true'
+        id: unsigned-app
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-application
+          path: src-tauri/target/release/storage-local.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign application
+        if: vars.ENABLE_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: velo
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: velo-app
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-app
+      - name: Verify and stage signed application
+        if: vars.ENABLE_SIGNPATH == 'true'
+        shell: pwsh
+        env:
+          SIGNPATH_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_CERTIFICATE_THUMBPRINT }}
+        run: |
+          ./scripts/verify-signature.ps1 -Path signed-app/storage-local.exe -Thumbprint $env:SIGNPATH_CERTIFICATE_THUMBPRINT
+          Copy-Item signed-app/storage-local.exe src-tauri/target/release/storage-local.exe -Force
+      - run: npm run tauri bundle -- --bundles nsis
+      - name: Stage installer
         shell: pwsh
         run: |
           $installer = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe)
           if ($installer.Count -ne 1) { throw 'Expected exactly one NSIS installer' }
           Copy-Item $installer[0].FullName Velo-Setup.exe
+      - name: Upload installer for signing
+        if: vars.ENABLE_SIGNPATH == 'true'
+        id: unsigned-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: Velo-Setup.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign installer
+        if: vars.ENABLE_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: velo
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: velo-installer
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+      - name: Verify and stage signed installer
+        if: vars.ENABLE_SIGNPATH == 'true'
+        shell: pwsh
+        env:
+          SIGNPATH_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_CERTIFICATE_THUMBPRINT }}
+        run: |
+          ./scripts/verify-signature.ps1 -Path signed-installer/Velo-Setup.exe -Thumbprint $env:SIGNPATH_CERTIFICATE_THUMBPRINT
+          Copy-Item signed-installer/Velo-Setup.exe Velo-Setup.exe -Force
+      - name: Generate checksum and signing status
+        shell: pwsh
+        env:
+          SIGNING_ENABLED: ${{ vars.ENABLE_SIGNPATH }}
+        run: |
           $hash = (Get-FileHash Velo-Setup.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  Velo-Setup.exe" | Set-Content SHA256SUMS.txt
+          $status = if ($env:SIGNING_ENABLED -eq 'true') { 'Application and installer Authenticode signatures verified.' } else { 'This release is unsigned. SignPath enrollment is pending.' }
+          "$status`n`nCode signing policy: https://velo-farhanfath.vercel.app/code-signing" | Set-Content release-signing.md
       - uses: actions/upload-artifact@v4
         with:
           name: velo-windows
@@ -40,6 +122,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           generate_release_notes: true
+          body_path: release-signing.md
           files: |
             Velo-Setup.exe
             SHA256SUMS.txt

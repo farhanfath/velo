@@ -6,6 +6,7 @@ jobs:
   install:
     runs-on: windows-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Download and verify published installer
         shell: pwsh
         run: |
@@ -15,14 +16,26 @@ jobs:
           $expected = ((Get-Content SHA256SUMS.txt -Raw).Trim() -split '\s+')[0]
           $actual = (Get-FileHash Velo-Setup.exe -Algorithm SHA256).Hash
           if ($actual -ne $expected) { throw 'Installer checksum mismatch' }
+      - name: Verify installer signature
+        if: vars.ENABLE_SIGNPATH == 'true'
+        shell: pwsh
+        env:
+          SIGNPATH_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_CERTIFICATE_THUMBPRINT }}
+        run: ./scripts/verify-signature.ps1 -Path Velo-Setup.exe -Thumbprint $env:SIGNPATH_CERTIFICATE_THUMBPRINT
       - name: Install and uninstall on clean Windows
         shell: pwsh
+        env:
+          SIGNING_ENABLED: ${{ vars.ENABLE_SIGNPATH }}
+          SIGNPATH_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_CERTIFICATE_THUMBPRINT }}
         run: |
           $target = Join-Path $env:RUNNER_TEMP 'VeloSmokeTest'
           $setup = Start-Process ./Velo-Setup.exe -ArgumentList '/S', "/D=$target" -WindowStyle Hidden -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Installer exited $($setup.ExitCode)" }
           $binary = Join-Path $target 'storage-local.exe'
           if (!(Test-Path -LiteralPath $binary)) { throw 'Installed application binary missing' }
+          if ($env:SIGNING_ENABLED -eq 'true') {
+            ./scripts/verify-signature.ps1 -Path $binary -Thumbprint $env:SIGNPATH_CERTIFICATE_THUMBPRINT
+          }
           $version = (Get-Item -LiteralPath $binary).VersionInfo.ProductVersion
           Write-Output "Installed Velo $version successfully"
           $uninstaller = Join-Path $target 'uninstall.exe'

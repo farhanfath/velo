@@ -3,6 +3,7 @@ name = "storage-local"
 version = "0.2.1"
 description = "100% Local-First Personal Credential & Secret Vault"
 authors = ["Owner"]
+license = "MIT"
 edition = "2021"
 
 [lib]

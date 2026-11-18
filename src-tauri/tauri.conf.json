@@ -39,6 +39,7 @@
       "nsis": {
         "installMode": "currentUser"
       }
-    }
+    },
+    "licenseFile": "../LICENSE"
   }
 }
